@@ -65,3 +65,7 @@ The syslog listener can be disabled or moved to another bind address and UDP
 port from the integration options. Because Home Assistant only needs one local
 syslog socket for all configured UPS entries, every syslog-enabled entry should
 use the same listener settings.
+
+If the listener cannot bind its configured address and port, or if two
+syslog-enabled entries request different listener settings, the integration
+raises a Home Assistant Repair issue with the settings that need attention.
