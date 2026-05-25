@@ -31,6 +31,10 @@ class SNMPError(Exception):
     """Raised when an SNMP query fails."""
 
 
+class SNMPConfigurationError(SNMPError):
+    """Raised when local SNMP connection settings are invalid."""
+
+
 @dataclass(frozen=True)
 class SNMPConnectionConfig:
     """SNMP connection settings."""
@@ -326,10 +330,12 @@ class SNMPClient:
             return CommunityData(self.config.community or "public", mpModel=1)
 
         if self.config.version != SNMP_VERSION_3:
-            raise SNMPError(f"Unsupported SNMP version: {self.config.version}")
+            raise SNMPConfigurationError(
+                f"Unsupported SNMP version: {self.config.version}"
+            )
 
         if not self.config.username:
-            raise SNMPError("SNMPv3 requires a username")
+            raise SNMPConfigurationError("SNMPv3 requires a username")
 
         auth_protocols = {
             AUTH_PROTOCOL_NONE: usmNoAuthProtocol,
@@ -346,25 +352,25 @@ class SNMPClient:
         privacy_protocol = privacy_protocols.get(self.config.privacy_protocol)
 
         if auth_protocol is None:
-            raise SNMPError(
+            raise SNMPConfigurationError(
                 f"Unsupported SNMPv3 auth protocol: {self.config.auth_protocol}"
             )
         if privacy_protocol is None:
-            raise SNMPError(
+            raise SNMPConfigurationError(
                 f"Unsupported SNMPv3 privacy protocol: {self.config.privacy_protocol}"
             )
         if self.config.auth_protocol != AUTH_PROTOCOL_NONE and not self.config.auth_key:
-            raise SNMPError("SNMPv3 authentication key is required")
+            raise SNMPConfigurationError("SNMPv3 authentication key is required")
         if (
             self.config.privacy_protocol != PRIVACY_PROTOCOL_NONE
             and not self.config.privacy_key
         ):
-            raise SNMPError("SNMPv3 privacy key is required")
+            raise SNMPConfigurationError("SNMPv3 privacy key is required")
         if (
             self.config.privacy_protocol != PRIVACY_PROTOCOL_NONE
             and self.config.auth_protocol == AUTH_PROTOCOL_NONE
         ):
-            raise SNMPError("SNMPv3 privacy requires authentication")
+            raise SNMPConfigurationError("SNMPv3 privacy requires authentication")
 
         return UsmUserData(
             self.config.username,

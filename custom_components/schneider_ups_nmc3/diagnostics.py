@@ -46,5 +46,5 @@ async def async_get_config_entry_diagnostics(
             "firmware_version": data.firmware_version if data else None,
             "agent_version": data.agent_version if data else None,
         },
-        "available_keys": sorted(data.values) if data else [],
+        "available_keys": sorted(data.values.keys()) if data else [],
     }

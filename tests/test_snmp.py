@@ -85,6 +85,21 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.firmware_version, "UPS 15.0 / NMC 3.2.1")
         self.assertEqual(data.unique_id, "as1234567890")
 
+    def test_snmpv3_missing_auth_key_is_configuration_error(self) -> None:
+        """Missing local SNMPv3 credentials produce a configuration error."""
+        client = snmp.SNMPClient(
+            snmp.SNMPConnectionConfig(
+                host="192.0.2.10",
+                version=snmp.SNMP_VERSION_3,
+                username="ups-user",
+                auth_protocol=snmp.AUTH_PROTOCOL_SHA,
+                privacy_protocol=snmp.PRIVACY_PROTOCOL_NONE,
+            )
+        )
+
+        with self.assertRaises(snmp.SNMPConfigurationError):
+            client._auth_data()
+
     def test_normalizes_powernet_values(self) -> None:
         """PowerNet values prefer high-precision NMC fields."""
         data = snmp.build_ups_data(

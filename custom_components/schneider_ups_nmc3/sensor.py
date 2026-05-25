@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -236,7 +237,7 @@ SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMC3SensorEntityDescription, ...] = (
     SchneiderUPSNMC3SensorEntityDescription(
         key="output_apparent_power",
         translation_key="output_apparent_power",
-        native_unit_of_measurement="VA",
+        native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_value("output_apparent_power"),
     ),

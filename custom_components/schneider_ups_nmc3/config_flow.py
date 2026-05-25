@@ -42,6 +42,7 @@ from .snmp import (
     SNMP_VERSION_2C,
     SNMP_VERSION_3,
     SNMPClient,
+    SNMPConfigurationError,
     SNMPConnectionConfig,
     SNMPError,
 )
@@ -64,6 +65,14 @@ PRIVACY_PROTOCOL_OPTIONS = {
     PRIVACY_PROTOCOL_NONE: "No privacy",
     PRIVACY_PROTOCOL_DES: "DES",
     PRIVACY_PROTOCOL_AES: "AES",
+}
+CONFIGURATION_ERROR_MESSAGES = {
+    "SNMPv3 requires a username": {CONF_USERNAME: "missing_username"},
+    "SNMPv3 authentication key is required": {CONF_AUTH_KEY: "missing_auth_key"},
+    "SNMPv3 privacy key is required": {CONF_PRIVACY_KEY: "missing_privacy_key"},
+    "SNMPv3 privacy requires authentication": {
+        CONF_AUTH_PROTOCOL: "privacy_requires_auth"
+    },
 }
 
 
@@ -205,6 +214,9 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         try:
             client = SNMPClient(_config_from_data(data))
             ups_data = await client.async_get_data()
+        except SNMPConfigurationError as err:
+            _LOGGER.debug("SNMP configuration validation failed", exc_info=err)
+            return _snmp_configuration_errors(err)
         except SNMPError as err:
             _LOGGER.debug("SNMP validation failed", exc_info=err)
             return {"base": "cannot_connect"}
@@ -281,4 +293,12 @@ def _config_from_data(data: dict[str, Any]) -> SNMPConnectionConfig:
         privacy_key=data.get(CONF_PRIVACY_KEY),
         timeout=DEFAULT_TIMEOUT,
         retries=DEFAULT_RETRIES,
+    )
+
+
+def _snmp_configuration_errors(err: SNMPConfigurationError) -> dict[str, str]:
+    """Map local SNMP configuration failures to config flow errors."""
+    return CONFIGURATION_ERROR_MESSAGES.get(
+        str(err),
+        {"base": "invalid_snmp_configuration"},
     )

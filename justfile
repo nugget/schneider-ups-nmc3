@@ -27,6 +27,7 @@ spellcheck:
 json:
     uv run python -m json.tool custom_components/schneider_ups_nmc3/manifest.json > /dev/null
     uv run python -m json.tool custom_components/schneider_ups_nmc3/strings.json > /dev/null
+    uv run python -m json.tool custom_components/schneider_ups_nmc3/translations/en.json > /dev/null
     uv run python -m json.tool hacs.json > /dev/null
 
 yaml:

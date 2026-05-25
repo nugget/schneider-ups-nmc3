@@ -20,7 +20,11 @@ async def async_setup_entry(
 ) -> bool:
     """Set up Schneider Electric UPS NMC3 from a config entry."""
     coordinator = SchneiderUPSNMC3Coordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception:
+        coordinator.close()
+        raise
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -2,7 +2,7 @@
   "domain": "schneider_ups_nmc3",
   "name": "Schneider Electric UPS NMC3",
   "after_dependencies": [],
-  "codeowners": [],
+  "codeowners": ["@nugget"],
   "config_flow": true,
   "documentation": "https://github.com/nugget/schneider-ups-nmc3",
   "integration_type": "device",
