@@ -1,0 +1,162 @@
+{
+  "title": "Schneider Electric UPS NMC3",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add UPS network management card",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "snmp_version": "SNMP version",
+          "scan_interval": "Scan interval"
+        }
+      },
+      "snmpv2c": {
+        "title": "SNMPv2c credentials",
+        "data": {
+          "community": "Community"
+        }
+      },
+      "snmpv3": {
+        "title": "SNMPv3 credentials",
+        "data": {
+          "username": "Username",
+          "auth_protocol": "Authentication protocol",
+          "auth_key": "Authentication key",
+          "privacy_protocol": "Privacy protocol",
+          "privacy_key": "Privacy key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not query the UPS over SNMP."
+    },
+    "abort": {
+      "already_configured": "This UPS is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Scan interval"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "alarm_present": {
+        "name": "Alarm present"
+      },
+      "battery_low": {
+        "name": "Battery low"
+      },
+      "battery_needs_replacing": {
+        "name": "Battery needs replacing"
+      },
+      "on_battery": {
+        "name": "On battery"
+      }
+    },
+    "sensor": {
+      "alarm_count": {
+        "name": "Alarm count"
+      },
+      "battery_charge": {
+        "name": "Battery charge"
+      },
+      "battery_current": {
+        "name": "Battery current"
+      },
+      "battery_external_sku": {
+        "name": "External battery SKU"
+      },
+      "battery_internal_sku": {
+        "name": "Internal battery SKU"
+      },
+      "battery_last_replace_date": {
+        "name": "Battery last replaced"
+      },
+      "battery_pack_count": {
+        "name": "Battery pack count"
+      },
+      "battery_recommended_replace_date": {
+        "name": "Battery recommended replacement"
+      },
+      "battery_replace_indicator": {
+        "name": "Battery replacement status"
+      },
+      "battery_status": {
+        "name": "Battery status"
+      },
+      "battery_temperature": {
+        "name": "Battery temperature"
+      },
+      "battery_voltage": {
+        "name": "Battery voltage"
+      },
+      "estimated_runtime": {
+        "name": "Estimated runtime"
+      },
+      "input_current": {
+        "name": "Input current"
+      },
+      "input_frequency": {
+        "name": "Input frequency"
+      },
+      "input_line_bads": {
+        "name": "Input line faults"
+      },
+      "input_line_fail_cause": {
+        "name": "Last input transfer reason"
+      },
+      "input_power": {
+        "name": "Input power"
+      },
+      "input_voltage": {
+        "name": "Input voltage"
+      },
+      "output_current": {
+        "name": "Output current"
+      },
+      "output_apparent_power": {
+        "name": "Output apparent power"
+      },
+      "output_efficiency": {
+        "name": "Output efficiency"
+      },
+      "output_energy": {
+        "name": "Output energy"
+      },
+      "output_frequency": {
+        "name": "Output frequency"
+      },
+      "output_load": {
+        "name": "Output load"
+      },
+      "output_power": {
+        "name": "Output power"
+      },
+      "output_source": {
+        "name": "Output source"
+      },
+      "output_voltage": {
+        "name": "Output voltage"
+      },
+      "seconds_on_battery": {
+        "name": "Seconds on battery"
+      },
+      "self_test_last_date": {
+        "name": "Last self-test"
+      },
+      "self_test_result": {
+        "name": "Self-test result"
+      },
+      "ups_status": {
+        "name": "UPS status"
+      }
+    }
+  }
+}

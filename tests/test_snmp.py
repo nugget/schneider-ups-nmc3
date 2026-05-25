@@ -1,0 +1,171 @@
+"""Tests for Schneider Electric UPS NMC3 SNMP normalization."""
+
+from __future__ import annotations
+
+import sys
+import unittest
+from datetime import date
+from importlib import util
+from pathlib import Path
+
+SNMP_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "custom_components"
+    / "schneider_ups_nmc3"
+    / "snmp.py"
+)
+SNMP_SPEC = util.spec_from_file_location("schneider_ups_nmc3_snmp", SNMP_PATH)
+assert SNMP_SPEC is not None
+snmp = util.module_from_spec(SNMP_SPEC)
+sys.modules[SNMP_SPEC.name] = snmp
+assert SNMP_SPEC.loader is not None
+SNMP_SPEC.loader.exec_module(snmp)
+
+
+class BuildUPSDataTest(unittest.TestCase):
+    """Test SNMP value normalization."""
+
+    def test_normalizes_rfc1628_values(self) -> None:
+        """RFC1628 integer values become Home Assistant-friendly units."""
+        data = snmp.build_ups_data(
+            {
+                "sys_name": "rack-ups",
+                "manufacturer": "Schneider Electric",
+                "model": "Smart-UPS 1500",
+                "firmware_version": "UPS 10.0",
+                "agent_version": "NMC3 3.1.0",
+                "battery_status_code": 2,
+                "seconds_on_battery": 0,
+                "estimated_runtime_minutes": 42,
+                "battery_charge": 97,
+                "battery_voltage_tenths": 273,
+                "battery_current_tenths": -4,
+                "battery_temperature": 25,
+                "input_frequency_tenths": 600,
+                "input_voltage": 121,
+                "input_current_tenths": 12,
+                "input_power": 144,
+                "output_source_code": 3,
+                "output_frequency_tenths": 600,
+                "output_voltage": 120,
+                "output_current_tenths": 11,
+                "output_power": 132,
+                "output_load": 18,
+                "alarm_count": 0,
+            },
+            fallback_unique_id="192.0.2.10:161",
+        )
+
+        self.assertEqual(data.name, "rack-ups")
+        self.assertEqual(data.model, "Smart-UPS 1500")
+        self.assertEqual(data.unique_id, "rack_ups")
+        self.assertEqual(data.value("battery_status"), "battery_normal")
+        self.assertEqual(data.value("estimated_runtime"), 2520)
+        self.assertEqual(data.value("battery_voltage"), 27.3)
+        self.assertEqual(data.value("battery_current"), -0.4)
+        self.assertEqual(data.value("input_frequency"), 60.0)
+        self.assertEqual(data.value("input_current"), 1.2)
+        self.assertEqual(data.value("output_source"), "normal")
+        self.assertEqual(data.value("output_frequency"), 60.0)
+        self.assertEqual(data.value("output_current"), 1.1)
+
+    def test_uses_powernet_identity_fallbacks(self) -> None:
+        """APC PowerNet identity fields supplement RFC1628 identity."""
+        data = snmp.build_ups_data(
+            {
+                "sys_name": "rack-ups",
+                "apc_model": "SRTL1500RMXLA",
+                "apc_serial_number": "AS1234567890",
+                "apc_firmware_version": "UPS 15.0 / NMC 3.2.1",
+            }
+        )
+
+        self.assertEqual(data.model, "SRTL1500RMXLA")
+        self.assertEqual(data.serial_number, "AS1234567890")
+        self.assertEqual(data.firmware_version, "UPS 15.0 / NMC 3.2.1")
+        self.assertEqual(data.unique_id, "as1234567890")
+
+    def test_normalizes_powernet_values(self) -> None:
+        """PowerNet values prefer high-precision NMC fields."""
+        data = snmp.build_ups_data(
+            {
+                "powernet_battery_status_code": 2,
+                "powernet_battery_charge_tenths": 997,
+                "powernet_battery_temperature_tenths": 224,
+                "powernet_battery_voltage_tenths": 1302,
+                "battery_replace_indicator_code": 1,
+                "battery_last_replace_date_raw": "04/07/2022",
+                "battery_recommended_replace_date_raw": "07/24/2027",
+                "powernet_input_voltage_tenths": 1234,
+                "powernet_input_frequency_tenths": 600,
+                "input_line_fail_cause_code": 7,
+                "ups_status_code": 2,
+                "powernet_output_voltage_tenths": 1234,
+                "powernet_output_frequency_tenths": 600,
+                "powernet_output_current_tenths": 67,
+                "powernet_output_active_power": 785,
+                "powernet_output_apparent_power": 823,
+                "powernet_output_load_tenths": 291,
+                "output_efficiency_tenths": 961,
+                "output_energy_hundredths_kwh": 1830251,
+                "self_test_result_code": 1,
+                "self_test_last_date_raw": "05/14/2026",
+            }
+        )
+
+        self.assertEqual(data.value("battery_status"), "battery_normal")
+        self.assertEqual(data.value("battery_charge"), 99.7)
+        self.assertEqual(data.value("battery_temperature"), 22.4)
+        self.assertEqual(data.value("battery_voltage"), 130.2)
+        self.assertEqual(data.value("battery_replace_indicator"), "ok")
+        self.assertEqual(data.value("battery_last_replace_date"), date(2022, 4, 7))
+        self.assertEqual(
+            data.value("battery_recommended_replace_date"),
+            date(2027, 7, 24),
+        )
+        self.assertEqual(data.value("input_voltage"), 123.4)
+        self.assertEqual(data.value("input_frequency"), 60.0)
+        self.assertEqual(data.value("input_line_fail_cause"), "small_momentary_spike")
+        self.assertEqual(data.value("ups_status"), "online")
+        self.assertEqual(data.value("output_voltage"), 123.4)
+        self.assertEqual(data.value("output_frequency"), 60.0)
+        self.assertEqual(data.value("output_current"), 6.7)
+        self.assertEqual(data.value("output_power"), 785)
+        self.assertEqual(data.value("output_apparent_power"), 823)
+        self.assertEqual(data.value("output_load"), 29.1)
+        self.assertEqual(data.value("output_efficiency"), 96.1)
+        self.assertEqual(data.value("output_energy"), 18302.51)
+        self.assertEqual(data.value("self_test_result"), "ok")
+        self.assertEqual(data.value("self_test_last_date"), date(2026, 5, 14))
+
+    def test_preserves_zero_powernet_values(self) -> None:
+        """PowerNet zero readings are not treated as missing fallbacks."""
+        data = snmp.build_ups_data(
+            {
+                "powernet_battery_charge_tenths": 0,
+                "battery_charge": 100,
+                "powernet_output_active_power": 0,
+                "output_power": 100,
+                "powernet_output_load_tenths": 0,
+                "output_load": 100,
+            }
+        )
+
+        self.assertEqual(data.value("battery_charge"), 0.0)
+        self.assertEqual(data.value("output_power"), 0)
+        self.assertEqual(data.value("output_load"), 0.0)
+
+    def test_uses_supplied_fallbacks_when_identity_is_missing(self) -> None:
+        """Missing identity still yields a stable name and unique id."""
+        data = snmp.build_ups_data(
+            {},
+            fallback_name="192.0.2.10",
+            fallback_unique_id="192.0.2.10:161",
+        )
+
+        self.assertEqual(data.name, "192.0.2.10")
+        self.assertEqual(data.unique_id, "192_0_2_10_161")
+
+
+if __name__ == "__main__":
+    unittest.main()
