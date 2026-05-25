@@ -85,6 +85,18 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.firmware_version, "UPS 15.0 / NMC 3.2.1")
         self.assertEqual(data.unique_id, "as1234567890")
 
+    def test_normalizes_mac_address(self) -> None:
+        """Management card MAC addresses are normalized for HA device matching."""
+        data = snmp.build_ups_data(
+            {
+                "sys_name": "rack-ups",
+                "mac_address": "00 C0 B7 12 34 56",
+            }
+        )
+
+        self.assertEqual(data.mac_address, "00:c0:b7:12:34:56")
+        self.assertEqual(data.value("mac_address"), "00:c0:b7:12:34:56")
+
     def test_snmpv3_missing_auth_key_is_configuration_error(self) -> None:
         """Missing local SNMPv3 credentials produce a configuration error."""
         client = snmp.SNMPClient(
@@ -180,6 +192,30 @@ class BuildUPSDataTest(unittest.TestCase):
 
         self.assertEqual(data.name, "192.0.2.10")
         self.assertEqual(data.unique_id, "192_0_2_10_161")
+
+    def test_selects_ethernet_mac_address(self) -> None:
+        """IF-MIB selection prefers the ethernet interface MAC address."""
+        mac_address = snmp._select_interface_mac_address(
+            {"1": 24, "2": snmp.ETHERNET_CSMACD_IF_TYPE},
+            {
+                "1": bytes.fromhex("112233445566"),
+                "2": bytes.fromhex("00c0b7123456"),
+            },
+        )
+
+        self.assertEqual(mac_address, "00:c0:b7:12:34:56")
+
+    def test_selects_first_valid_mac_address_without_ethernet_type(self) -> None:
+        """IF-MIB selection falls back when interface type is not available."""
+        mac_address = snmp._select_interface_mac_address(
+            {},
+            {
+                "1": "00:00:00:00:00:00",
+                "2": "28-29-86-AA-BB-CC",
+            },
+        )
+
+        self.assertEqual(mac_address, "28:29:86:aa:bb:cc")
 
 
 if __name__ == "__main__":

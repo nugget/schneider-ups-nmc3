@@ -47,6 +47,11 @@ values. That matches common single-phase UPS deployments. Multi-phase and
 multi-output UPS support should grow from real NMC3 walks so the entity model
 matches what the card actually reports.
 
+When the NMC exposes a physical network interface through IF-MIB, the
+integration registers the NMC MAC address as a Home Assistant device
+connection. That helps Home Assistant coalesce the UPS device with discovery or
+future integrations that identify the same network card by MAC address.
+
 The NMC3 syslog test message has been probed and a parser exists for its
 RFC5424-style event format. The Home Assistant integration does not yet open a
 local syslog listener or subscribe entities to push events.

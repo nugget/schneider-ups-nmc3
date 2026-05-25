@@ -45,6 +45,7 @@ async def async_get_config_entry_diagnostics(
             "model": data.model if data else None,
             "firmware_version": data.firmware_version if data else None,
             "agent_version": data.agent_version if data else None,
+            "mac_address": data.mac_address if data else None,
         },
         "available_keys": sorted(data.values.keys()) if data else [],
     }
