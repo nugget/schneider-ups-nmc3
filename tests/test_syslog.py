@@ -6,7 +6,6 @@ import sys
 import unittest
 from importlib import util
 from pathlib import Path
-from typing import Any, cast
 
 SYSLOG_PATH = (
     Path(__file__).resolve().parents[1]
@@ -157,7 +156,7 @@ class SyslogPushManagerTest(unittest.TestCase):
     def test_reports_listener_configuration(self) -> None:
         """Report whether the manager matches requested listener settings."""
         manager = syslog.SyslogPushManager(
-            cast("Any", object()),
+            object(),
             bind_address="127.0.0.1",
             port=1515,
         )
