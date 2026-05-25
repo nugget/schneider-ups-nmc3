@@ -22,7 +22,7 @@ typecheck:
     uv run pyright
 
 spellcheck:
-    uv run codespell --ignore-words-list hass README.md custom_components tests hacs.json justfile pyproject.toml .github/workflows
+    uv run codespell --ignore-words-list hass AGENTS.md README.md custom_components tests hacs.json justfile pyproject.toml .github/workflows
 
 json:
     uv run python -m json.tool custom_components/schneider_ups_nmc3/manifest.json > /dev/null
