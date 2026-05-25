@@ -3,7 +3,7 @@ name = "schneider-ups-nmc3"
 version = "0.1.0"
 description = "Home Assistant custom integration for Schneider Electric APC UPS NMC3 devices."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13.2"
 dependencies = [
     "cryptography>=42.0.0,<49.0.0",
     "pysnmp==7.1.27",
@@ -14,6 +14,7 @@ dev = [
     "codespell>=2.4.0,<3.0.0",
     "pydoclint>=0.6.0,<1.0.0",
     "pyright>=1.1.400,<2.0.0",
+    "pytest-homeassistant-custom-component==0.13.316",
     "ruff>=0.13.0,<1.0.0",
     "yamllint>=1.37.0,<2.0.0",
 ]
@@ -74,6 +75,11 @@ check-class-attributes = false
 skip-checking-private-functions = true
 skip-checking-short-docstrings = true
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_homeassistant_*.py"]
+
 [tool.pyright]
 include = ["custom_components", "tests"]
 pythonVersion = "3.13"
@@ -83,3 +89,4 @@ reportUnknownArgumentType = "none"
 reportUnknownMemberType = "none"
 reportUnknownVariableType = "none"
 reportUnknownLambdaType = "none"
+reportIncompatibleVariableOverride = "none"

@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from homeassistant.components.event import EventEntity, EventEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import callback
-from homeassistant.helpers.entity import EntityCategory
 
 from .entity import SchneiderUPSNMC3Entity
 from .syslog import SYSLOG_EVENT_TYPES, RoutedSyslogEvent, syslog_event_state_data

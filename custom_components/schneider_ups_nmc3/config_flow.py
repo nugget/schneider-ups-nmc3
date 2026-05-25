@@ -56,7 +56,7 @@ from .syslog import (
 )
 
 if TYPE_CHECKING:
-    from homeassistant.data_entry_flow import FlowResult
+    from homeassistant.config_entries import ConfigFlowResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial setup step."""
         errors: dict[str, str] = {}
 
@@ -142,7 +142,7 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
 
     async def async_step_snmpv2c(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle SNMPv2c credentials."""
         errors: dict[str, str] = {}
 
@@ -164,7 +164,7 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
 
     async def async_step_snmpv3(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle SNMPv3 credentials."""
         errors: dict[str, str] = {}
 
@@ -243,7 +243,7 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
 
         return {}
 
-    async def _async_create_entry(self, data: dict[str, Any]) -> FlowResult:
+    async def _async_create_entry(self, data: dict[str, Any]) -> ConfigFlowResult:
         """Create the config entry."""
         title = data.pop("_title", data[CONF_HOST])
         return self.async_create_entry(title=title, data=data)
@@ -258,7 +258,7 @@ class SchneiderUPSNMC3OptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage integration options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
