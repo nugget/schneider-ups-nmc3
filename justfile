@@ -149,6 +149,6 @@ yaml:
 
 test:
     PYTHONDONTWRITEBYTECODE=1 uv run python -m unittest discover -s tests
-    PYTHONDONTWRITEBYTECODE=1 uv run pytest -q tests/test_homeassistant_setup.py
+    PYTHONDONTWRITEBYTECODE=1 uv run pytest -q
 
 ci: lock-check format-check lint doclint typecheck spellcheck json yaml test

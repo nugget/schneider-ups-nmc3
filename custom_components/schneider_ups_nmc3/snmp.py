@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
@@ -394,9 +395,31 @@ class SNMPClient:
         if callable(close_dispatcher):
             close_dispatcher()
 
-        transport_dispatcher = getattr(self._snmp_engine, "transportDispatcher", None)
+        transport_dispatcher = getattr(self._snmp_engine, "transport_dispatcher", None)
+        if transport_dispatcher is None:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="transportDispatcher is deprecated",
+                    category=DeprecationWarning,
+                )
+                transport_dispatcher = getattr(
+                    self._snmp_engine,
+                    "transportDispatcher",
+                    None,
+                )
         if transport_dispatcher is not None:
-            close_dispatcher = getattr(transport_dispatcher, "closeDispatcher", None)
+            close_dispatcher = getattr(
+                transport_dispatcher,
+                "close_dispatcher",
+                None,
+            )
+            if not callable(close_dispatcher):
+                close_dispatcher = getattr(
+                    transport_dispatcher,
+                    "closeDispatcher",
+                    None,
+                )
             if callable(close_dispatcher):
                 close_dispatcher()
 
