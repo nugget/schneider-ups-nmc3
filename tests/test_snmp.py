@@ -217,6 +217,18 @@ class BuildUPSDataTest(unittest.TestCase):
 
         self.assertEqual(mac_address, "28:29:86:aa:bb:cc")
 
+    def test_first_result_bind_preserves_flat_var_bind(self) -> None:
+        """Flat PySNMP GETNEXT bindings are already `(oid, value)` pairs."""
+        var_bind = ("1.3.6.1.2.1.2.2.1.6.1", bytes.fromhex("00c0b7123456"))
+
+        self.assertEqual(snmp._first_result_bind([var_bind]), var_bind)
+
+    def test_first_result_bind_unwraps_nested_table_row(self) -> None:
+        """Nested PySNMP GETNEXT table rows unwrap to the first varBind pair."""
+        var_bind = ("1.3.6.1.2.1.2.2.1.6.1", bytes.fromhex("00c0b7123456"))
+
+        self.assertEqual(snmp._first_result_bind([[var_bind]]), var_bind)
+
 
 if __name__ == "__main__":
     unittest.main()

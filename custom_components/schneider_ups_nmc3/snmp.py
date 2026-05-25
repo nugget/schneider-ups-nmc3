@@ -144,6 +144,7 @@ IF_PHYS_ADDRESS_OID = "1.3.6.1.2.1.2.2.1.6"
 ETHERNET_CSMACD_IF_TYPE = 6
 MAX_INTERFACE_ROWS = 64
 MAC_ADDRESS_OCTETS = 6
+VAR_BIND_PARTS = 2
 MAC_PAIR_RE = re.compile(r"[0-9A-Fa-f]{2}")
 
 BATTERY_STATUS = {
@@ -615,12 +616,27 @@ def _select_interface_mac_address(
 def _first_result_bind(result_binds: Sequence[Any]) -> Any | None:
     """Return the first SNMP result binding across PySNMP return shapes."""
     first_result = result_binds[0]
-    if isinstance(first_result, list | tuple):
-        if not first_result:
-            return None
-        return first_result[0]
+    if _looks_like_var_bind(first_result):
+        return first_result
+    if not isinstance(first_result, list | tuple):
+        return first_result
+    if not first_result:
+        return None
 
-    return first_result
+    nested_result = first_result[0]
+    if _looks_like_var_bind(nested_result):
+        return nested_result
+
+    return None
+
+
+def _looks_like_var_bind(value: Any) -> bool:
+    """Return whether a value resembles an SNMP `(oid, value)` binding."""
+    return (
+        not isinstance(value, str | bytes | bytearray)
+        and isinstance(value, list | tuple)
+        and len(value) == VAR_BIND_PARTS
+    )
 
 
 def _format_mac_address(value: Any) -> str | None:
