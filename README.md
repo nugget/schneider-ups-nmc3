@@ -58,7 +58,7 @@ entry options.
 - Input voltage, frequency, current, power, line fault counter, and last
   transfer reason.
 - Output source, voltage, frequency, current, real power, apparent power, load,
-  efficiency, and total energy.
+  power factor, efficiency, and total energy.
 - Self-test result and last self-test date.
 - Active alarm count.
 - Binary sensors for on battery, battery low, battery needs replacing, and alarm
@@ -69,6 +69,23 @@ entry options.
 
 Entities whose backing OID is not exposed by a particular UPS model or firmware
 report unavailable rather than presenting a fresh but ambiguous unknown value.
+
+## Energy dashboard
+
+The **Output energy** sensor is reported in `kWh` with Home Assistant's energy
+device class and `total_increasing` state class. When your NMC exposes that
+counter, Home Assistant can use it in the Energy dashboard as an individual
+device energy sensor.
+
+Treat this value as protected-load energy measured at the UPS output. If you
+also monitor the upstream circuit that feeds the UPS, add the UPS output energy
+as an individual device under that upstream device in Home Assistant's energy
+configuration so the same consumption is not counted twice.
+
+Some UPS/NMC firmware may not expose the output energy counter. In that case
+the **Output energy** sensor will be unavailable, but the **Output power** sensor
+can still be used with Home Assistant's Integration helper to estimate energy
+from sampled power readings.
 
 ## Notes
 

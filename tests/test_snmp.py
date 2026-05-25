@@ -229,6 +229,7 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.value("output_current"), 6.7)
         self.assertEqual(data.value("output_power"), 785)
         self.assertEqual(data.value("output_apparent_power"), 823)
+        self.assertEqual(data.value("output_power_factor"), 95.4)
         self.assertEqual(data.value("output_load"), 29.1)
         self.assertEqual(data.value("output_efficiency"), 96.1)
         self.assertEqual(data.value("output_energy"), 18302.51)
