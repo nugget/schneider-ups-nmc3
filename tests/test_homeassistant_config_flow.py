@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import Mock
 
@@ -41,6 +43,8 @@ if TYPE_CHECKING:
 
 
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
+
+INTEGRATION_DIR = Path(__file__).parents[1] / "custom_components/schneider_ups_nmc"
 
 
 async def test_snmpv2c_config_flow_creates_entry(
@@ -159,6 +163,30 @@ async def test_config_flow_uses_password_selectors_for_snmp_secrets(
     assert _schema_selector(data_schema, CONF_PRIVACY_KEY).config["type"] == (
         TextSelectorType.PASSWORD
     )
+
+
+@pytest.mark.parametrize(
+    ("translation_file", "expected_auth_label", "expected_privacy_label"),
+    [
+        ("strings.json", "Authentication passphrase", "Privacy passphrase"),
+        ("translations/en.json", "Authentication passphrase", "Privacy passphrase"),
+    ],
+)
+def test_snmpv3_secret_labels_match_apc_passphrase_terminology(
+    translation_file: str,
+    expected_auth_label: str,
+    expected_privacy_label: str,
+) -> None:
+    """Use APC passphrase terminology for user-facing SNMPv3 credentials."""
+    translations = json.loads((INTEGRATION_DIR / translation_file).read_text())
+
+    snmpv3_data = translations["config"]["step"]["snmpv3"]["data"]
+    errors = translations["config"]["error"]
+
+    assert snmpv3_data[CONF_AUTH_KEY] == expected_auth_label
+    assert snmpv3_data[CONF_PRIVACY_KEY] == expected_privacy_label
+    assert errors["missing_auth_key"] == f"{expected_auth_label} is required."
+    assert errors["missing_privacy_key"] == f"{expected_privacy_label} is required."
 
 
 async def test_options_flow_saves_polling_and_syslog_options(
