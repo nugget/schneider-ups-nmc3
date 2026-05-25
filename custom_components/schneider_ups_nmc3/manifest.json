@@ -1,0 +1,14 @@
+{
+  "domain": "schneider_ups_nmc3",
+  "name": "Schneider Electric UPS NMC3",
+  "after_dependencies": [],
+  "codeowners": ["@nugget"],
+  "config_flow": true,
+  "documentation": "https://github.com/nugget/schneider-ups-nmc3",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/nugget/schneider-ups-nmc3/issues",
+  "loggers": ["pysnmp"],
+  "requirements": ["pysnmp==7.1.27", "cryptography>=42.0.0,<49.0.0"],
+  "version": "0.1.0"
+}
