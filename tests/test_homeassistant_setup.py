@@ -34,14 +34,9 @@ if TYPE_CHECKING:
 
 ENTRY_ID = "01HZZZZZZZZZZZZZZZZZZZZZZZ"
 ENTRY_UNIQUE_ID = "ups-test-device"
+pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
 
 
-@pytest.fixture(autouse=True)
-def _enable_custom_integrations(enable_custom_integrations: None) -> None:
-    """Enable custom integrations for all Home Assistant tests."""
-
-
-@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_config_entry_sets_up_entities_and_unloads(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
