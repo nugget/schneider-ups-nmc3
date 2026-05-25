@@ -25,6 +25,9 @@ from .const import (
     CONF_PRIVACY_KEY,
     CONF_PRIVACY_PROTOCOL,
     CONF_SNMP_VERSION,
+    CONF_SYSLOG_BIND_ADDRESS,
+    CONF_SYSLOG_ENABLED,
+    CONF_SYSLOG_PORT,
     CONF_USERNAME,
     DEFAULT_PORT,
     DEFAULT_RETRIES,
@@ -45,6 +48,11 @@ from .snmp import (
     SNMPConfigurationError,
     SNMPConnectionConfig,
     SNMPError,
+)
+from .syslog import (
+    DEFAULT_SYSLOG_BIND_ADDRESS,
+    DEFAULT_SYSLOG_ENABLED,
+    DEFAULT_SYSLOG_PORT,
 )
 
 if TYPE_CHECKING:
@@ -259,6 +267,21 @@ class SchneiderUPSNMC3OptionsFlow(config_entries.OptionsFlow):
             CONF_SCAN_INTERVAL,
             self._config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         )
+        syslog_enabled = self._config_entry.options.get(
+            CONF_SYSLOG_ENABLED,
+            self._config_entry.data.get(CONF_SYSLOG_ENABLED, DEFAULT_SYSLOG_ENABLED),
+        )
+        syslog_bind_address = self._config_entry.options.get(
+            CONF_SYSLOG_BIND_ADDRESS,
+            self._config_entry.data.get(
+                CONF_SYSLOG_BIND_ADDRESS,
+                DEFAULT_SYSLOG_BIND_ADDRESS,
+            ),
+        )
+        syslog_port = self._config_entry.options.get(
+            CONF_SYSLOG_PORT,
+            self._config_entry.data.get(CONF_SYSLOG_PORT, DEFAULT_SYSLOG_PORT),
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -272,6 +295,21 @@ class SchneiderUPSNMC3OptionsFlow(config_entries.OptionsFlow):
                             max=3600,
                             mode=NumberSelectorMode.BOX,
                             unit_of_measurement="seconds",
+                        )
+                    ),
+                    vol.Required(CONF_SYSLOG_ENABLED, default=syslog_enabled): bool,
+                    vol.Required(
+                        CONF_SYSLOG_BIND_ADDRESS,
+                        default=syslog_bind_address,
+                    ): str,
+                    vol.Required(
+                        CONF_SYSLOG_PORT,
+                        default=syslog_port,
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=65535,
+                            mode=NumberSelectorMode.BOX,
                         )
                     ),
                 }

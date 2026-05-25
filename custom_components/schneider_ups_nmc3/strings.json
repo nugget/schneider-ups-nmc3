@@ -45,7 +45,10 @@
       "init": {
         "title": "Options",
         "data": {
-          "scan_interval": "Scan interval"
+          "scan_interval": "Scan interval",
+          "syslog_enabled": "Enable syslog listener",
+          "syslog_bind_address": "Syslog bind address",
+          "syslog_port": "Syslog UDP port"
         }
       }
     }

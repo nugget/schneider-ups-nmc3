@@ -60,3 +60,8 @@ one or more NMC3 cards to send syslog events to the Home Assistant host on that
 port. Events are routed to configured UPS entries by packet source IP and used
 to fire the entry's syslog event entity and request an immediate SNMP refresh
 while SNMP polling remains the source of truth for telemetry.
+
+The syslog listener can be disabled or moved to another bind address and UDP
+port from the integration options. Because Home Assistant only needs one local
+syslog socket for all configured UPS entries, every syslog-enabled entry should
+use the same listener settings.

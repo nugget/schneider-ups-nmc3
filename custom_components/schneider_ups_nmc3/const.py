@@ -17,6 +17,9 @@ CONF_COMMUNITY = "community"
 CONF_PRIVACY_KEY = "privacy_key"
 CONF_PRIVACY_PROTOCOL = "privacy_protocol"
 CONF_SNMP_VERSION = "snmp_version"
+CONF_SYSLOG_BIND_ADDRESS = "syslog_bind_address"
+CONF_SYSLOG_ENABLED = "syslog_enabled"
+CONF_SYSLOG_PORT = "syslog_port"
 CONF_USERNAME = "username"
 
 DEFAULT_PORT = 161
