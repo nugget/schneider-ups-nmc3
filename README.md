@@ -52,6 +52,8 @@ integration registers the NMC MAC address as a Home Assistant device
 connection. That helps Home Assistant coalesce the UPS device with discovery or
 future integrations that identify the same network card by MAC address.
 
-The NMC3 syslog test message has been probed and a parser exists for its
-RFC5424-style event format. The Home Assistant integration does not yet open a
-local syslog listener or subscribe entities to push events.
+The integration opens a shared UDP syslog listener on port `1514`. Configure
+one or more NMC3 cards to send syslog events to the Home Assistant host on that
+port. Events are routed to configured UPS entries by packet source IP and used
+to request an immediate SNMP refresh while SNMP polling remains the source of
+truth for telemetry.

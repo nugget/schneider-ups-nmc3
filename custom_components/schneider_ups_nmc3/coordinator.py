@@ -36,6 +36,8 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+    from .syslog import RoutedSyslogEvent
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -51,6 +53,7 @@ class SchneiderUPSNMC3Coordinator(DataUpdateCoordinator[UPSData]):
             f"{entry.data[CONF_HOST]}:{entry.data.get(CONF_PORT, DEFAULT_PORT)}"
         )
         self.host = entry.data[CONF_HOST]
+        self.last_syslog_event: RoutedSyslogEvent | None = None
 
         scan_interval = entry.options.get(
             CONF_SCAN_INTERVAL,
@@ -73,6 +76,11 @@ class SchneiderUPSNMC3Coordinator(DataUpdateCoordinator[UPSData]):
             return await self.client.async_get_data()
         except SNMPError as err:
             raise UpdateFailed(f"SNMP query failed: {err}") from err
+
+    async def async_handle_syslog_event(self, event: RoutedSyslogEvent) -> None:
+        """Handle a pushed syslog event from the NMC."""
+        self.last_syslog_event = event
+        await self.async_request_refresh()
 
     def close(self) -> None:
         """Close the SNMP client."""
