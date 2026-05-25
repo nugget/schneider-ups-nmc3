@@ -1,5 +1,11 @@
 # Schneider Electric UPS NMC3
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square)](https://www.hacs.xyz/)
+[![CI](https://img.shields.io/github/actions/workflow/status/nugget/schneider-ups-nmc3/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/nugget/schneider-ups-nmc3/actions/workflows/ci.yml)
+[![Manifest version](https://img.shields.io/badge/dynamic/json?style=flat-square&label=manifest&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fnugget%2Fschneider-ups-nmc3%2Fmain%2Fcustom_components%2Fschneider_ups_nmc3%2Fmanifest.json)](https://github.com/nugget/schneider-ups-nmc3/blob/main/custom_components/schneider_ups_nmc3/manifest.json)
+[![Release](https://img.shields.io/github/v/release/nugget/schneider-ups-nmc3?style=flat-square&label=release)](https://github.com/nugget/schneider-ups-nmc3/releases)
+[![License](https://img.shields.io/github/license/nugget/schneider-ups-nmc3?style=flat-square)](LICENSE)
+
 Home Assistant custom integration for UPS units managed by Schneider Electric
 APC Network Management Card 3 hardware.
 
@@ -93,3 +99,8 @@ use the same listener settings.
 If the listener cannot bind its configured address and port, or if two
 syslog-enabled entries request different listener settings, the integration
 raises a Home Assistant Repair issue with the settings that need attention.
+
+## License
+
+Schneider Electric UPS NMC3 is released under the [Apache License 2.0](LICENSE),
+matching Home Assistant's source license.
