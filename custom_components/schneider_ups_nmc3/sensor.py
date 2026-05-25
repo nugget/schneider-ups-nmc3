@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -22,14 +21,19 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import SchneiderUPSNMC3ConfigEntry
-from .coordinator import SchneiderUPSNMC3Coordinator
 from .entity import SchneiderUPSNMC3Entity
-from .snmp import UPSData
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+    from . import SchneiderUPSNMC3ConfigEntry
+    from .coordinator import SchneiderUPSNMC3Coordinator
+    from .snmp import UPSData
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -291,7 +295,7 @@ SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMC3SensorEntityDescription, ...] = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SchneiderUPSNMC3ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:

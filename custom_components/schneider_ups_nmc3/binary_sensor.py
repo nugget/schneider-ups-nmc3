@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import SchneiderUPSNMC3ConfigEntry
-from .coordinator import SchneiderUPSNMC3Coordinator
 from .entity import SchneiderUPSNMC3Entity
-from .snmp import UPSData
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+    from . import SchneiderUPSNMC3ConfigEntry
+    from .coordinator import SchneiderUPSNMC3Coordinator
+    from .snmp import UPSData
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,7 +104,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: SchneiderUPSNMC3ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -111,9 +116,7 @@ async def async_setup_entry(
     )
 
 
-class SchneiderUPSNMC3BinarySensorEntity(
-    SchneiderUPSNMC3Entity, BinarySensorEntity
-):
+class SchneiderUPSNMC3BinarySensorEntity(SchneiderUPSNMC3Entity, BinarySensorEntity):
     """A Schneider Electric UPS NMC3 binary sensor."""
 
     entity_description: SchneiderUPSNMC3BinarySensorEntityDescription

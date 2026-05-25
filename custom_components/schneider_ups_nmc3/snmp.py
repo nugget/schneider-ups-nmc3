@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 SNMP_VERSION_2C = "2c"
 SNMP_VERSION_3 = "3"
@@ -269,10 +271,12 @@ class SNMPClient:
                 failed_index = int(error_index) - 1
                 if 0 <= failed_index < len(oids):
                     failed_oid = oids[failed_index]
-            raise SNMPError(f"{error_status.prettyPrint()} at {failed_oid}")
+            pretty_print = getattr(error_status, "prettyPrint", None)
+            error_text = pretty_print() if callable(pretty_print) else str(error_status)
+            raise SNMPError(f"{error_text} at {failed_oid}")
 
         values: dict[str, Any] = {}
-        for oid, result in zip(oids, result_binds):
+        for oid, result in zip(oids, result_binds, strict=True):
             values[oid] = _coerce_snmp_value(result[1])
 
         return values
@@ -349,10 +353,7 @@ class SNMPClient:
             raise SNMPError(
                 f"Unsupported SNMPv3 privacy protocol: {self.config.privacy_protocol}"
             )
-        if (
-            self.config.auth_protocol != AUTH_PROTOCOL_NONE
-            and not self.config.auth_key
-        ):
+        if self.config.auth_protocol != AUTH_PROTOCOL_NONE and not self.config.auth_key:
             raise SNMPError("SNMPv3 authentication key is required")
         if (
             self.config.privacy_protocol != PRIVACY_PROTOCOL_NONE
@@ -382,10 +383,10 @@ def build_ups_data(
 ) -> UPSData:
     """Normalize raw SNMP values into Home Assistant-friendly data."""
     values = dict(raw)
-    values["battery_status"] = (
-        POWERNET_BATTERY_STATUS.get(_int(raw.get("powernet_battery_status_code")))
-        or BATTERY_STATUS.get(_int(raw.get("battery_status_code")))
-    )
+    values["battery_status"] = _enum_name(
+        POWERNET_BATTERY_STATUS,
+        raw.get("powernet_battery_status_code"),
+    ) or _enum_name(BATTERY_STATUS, raw.get("battery_status_code"))
     values["estimated_runtime"] = _minutes_to_seconds(
         raw.get("estimated_runtime_minutes")
     )
@@ -402,8 +403,9 @@ def build_ups_data(
         _tenths(raw.get("powernet_battery_temperature_tenths")),
         raw.get("battery_temperature"),
     )
-    values["battery_replace_indicator"] = BATTERY_REPLACE_INDICATOR.get(
-        _int(raw.get("battery_replace_indicator_code"))
+    values["battery_replace_indicator"] = _enum_name(
+        BATTERY_REPLACE_INDICATOR,
+        raw.get("battery_replace_indicator_code"),
     )
     values["battery_last_replace_date"] = _date(
         raw.get("battery_last_replace_date_raw")
@@ -420,11 +422,15 @@ def build_ups_data(
         _tenths(raw.get("input_frequency_tenths")),
     )
     values["input_current"] = _tenths(raw.get("input_current_tenths"))
-    values["input_line_fail_cause"] = INPUT_LINE_FAIL_CAUSE.get(
-        _int(raw.get("input_line_fail_cause_code"))
+    values["input_line_fail_cause"] = _enum_name(
+        INPUT_LINE_FAIL_CAUSE,
+        raw.get("input_line_fail_cause_code"),
     )
-    values["ups_status"] = UPS_STATUS.get(_int(raw.get("ups_status_code")))
-    values["output_source"] = OUTPUT_SOURCE.get(_int(raw.get("output_source_code")))
+    values["ups_status"] = _enum_name(UPS_STATUS, raw.get("ups_status_code"))
+    values["output_source"] = _enum_name(
+        OUTPUT_SOURCE,
+        raw.get("output_source_code"),
+    )
     values["output_voltage"] = _first_present(
         _tenths(raw.get("powernet_output_voltage_tenths")),
         raw.get("output_voltage"),
@@ -450,8 +456,9 @@ def build_ups_data(
     )
     values["output_efficiency"] = _tenths(raw.get("output_efficiency_tenths"))
     values["output_energy"] = _hundredths(raw.get("output_energy_hundredths_kwh"))
-    values["self_test_result"] = SELF_TEST_RESULT.get(
-        _int(raw.get("self_test_result_code"))
+    values["self_test_result"] = _enum_name(
+        SELF_TEST_RESULT,
+        raw.get("self_test_result_code"),
     )
     values["self_test_last_date"] = _date(raw.get("self_test_last_date_raw"))
 
@@ -505,6 +512,15 @@ def _first_text(raw: Mapping[str, Any], *keys: str) -> str | None:
             return text
 
     return None
+
+
+def _enum_name(enum: Mapping[int, str], value: Any) -> str | None:
+    """Return the normalized name for an integer enum value."""
+    integer = _int(value)
+    if integer is None:
+        return None
+
+    return enum.get(integer)
 
 
 def _first_present(*values: Any) -> Any:

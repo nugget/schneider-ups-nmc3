@@ -27,10 +27,8 @@ class ParseSyslogMessageTest(unittest.TestCase):
     def test_parses_nmc3_test_message(self) -> None:
         """Parse the RFC5424-ish NMC3 syslog test format."""
         event = syslog.parse_syslog_message(
-            (
-                "<8>1 2026-05-25T01:20:40-05:00 "
-                "ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog."
-            )
+            "<8>1 2026-05-25T01:20:40-05:00 "
+            "ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog."
         )
 
         self.assertEqual(event.priority, 8)

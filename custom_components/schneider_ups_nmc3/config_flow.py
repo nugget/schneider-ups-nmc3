@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -29,9 +27,9 @@ from .const import (
     CONF_SNMP_VERSION,
     CONF_USERNAME,
     DEFAULT_PORT,
+    DEFAULT_RETRIES,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TIMEOUT,
-    DEFAULT_RETRIES,
     DOMAIN,
 )
 from .snmp import (
@@ -41,12 +39,15 @@ from .snmp import (
     PRIVACY_PROTOCOL_AES,
     PRIVACY_PROTOCOL_DES,
     PRIVACY_PROTOCOL_NONE,
-    SNMPConnectionConfig,
-    SNMPError,
-    SNMPClient,
     SNMP_VERSION_2C,
     SNMP_VERSION_3,
+    SNMPClient,
+    SNMPConnectionConfig,
+    SNMPError,
 )
+
+if TYPE_CHECKING:
+    from homeassistant.data_entry_flow import FlowResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +67,10 @@ PRIVACY_PROTOCOL_OPTIONS = {
 }
 
 
-class SchneiderUPSNMC3ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
+    config_entries.ConfigFlow,
+    domain=DOMAIN,  # pyright: ignore[reportCallIssue]
+):
     """Handle a config flow for Schneider Electric UPS NMC3."""
 
     VERSION = 1
@@ -197,6 +201,7 @@ class SchneiderUPSNMC3ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_validate_input(self, data: dict[str, Any]) -> dict[str, str]:
         """Validate the user input by querying the UPS."""
+        client: SNMPClient | None = None
         try:
             client = SNMPClient(_config_from_data(data))
             ups_data = await client.async_get_data()
@@ -204,7 +209,7 @@ class SchneiderUPSNMC3ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.debug("SNMP validation failed", exc_info=err)
             return {"base": "cannot_connect"}
         finally:
-            if "client" in locals():
+            if client is not None:
                 client.close()
 
         await self.async_set_unique_id(ups_data.unique_id)

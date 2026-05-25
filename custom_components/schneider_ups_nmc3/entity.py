@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import SchneiderUPSNMC3Coordinator
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.entity import EntityDescription
 
 
 class SchneiderUPSNMC3Entity(CoordinatorEntity[SchneiderUPSNMC3Coordinator]):
@@ -17,7 +22,7 @@ class SchneiderUPSNMC3Entity(CoordinatorEntity[SchneiderUPSNMC3Coordinator]):
     def __init__(
         self,
         coordinator: SchneiderUPSNMC3Coordinator,
-        description,
+        description: EntityDescription,
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator)

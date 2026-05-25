@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import SchneiderUPSNMC3Coordinator
 
-SchneiderUPSNMC3ConfigEntry = ConfigEntry[SchneiderUPSNMC3Coordinator]
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+
+type SchneiderUPSNMC3ConfigEntry = ConfigEntry[SchneiderUPSNMC3Coordinator]
 
 
 async def async_setup_entry(

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_AUTH_KEY,
@@ -15,6 +13,10 @@ from .const import (
     CONF_USERNAME,
     DOMAIN,
 )
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
 
 TO_REDACT = {
     CONF_AUTH_KEY,

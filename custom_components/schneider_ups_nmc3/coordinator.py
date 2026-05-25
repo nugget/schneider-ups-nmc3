@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -32,6 +31,10 @@ from .snmp import (
     SNMPError,
     UPSData,
 )
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,9 +89,7 @@ def _config_from_entry(entry: ConfigEntry) -> SNMPConnectionConfig:
         username=entry.data.get(CONF_USERNAME),
         auth_protocol=entry.data.get(CONF_AUTH_PROTOCOL, AUTH_PROTOCOL_NONE),
         auth_key=entry.data.get(CONF_AUTH_KEY),
-        privacy_protocol=entry.data.get(
-            CONF_PRIVACY_PROTOCOL, PRIVACY_PROTOCOL_NONE
-        ),
+        privacy_protocol=entry.data.get(CONF_PRIVACY_PROTOCOL, PRIVACY_PROTOCOL_NONE),
         privacy_key=entry.data.get(CONF_PRIVACY_KEY),
         timeout=DEFAULT_TIMEOUT,
         retries=DEFAULT_RETRIES,
