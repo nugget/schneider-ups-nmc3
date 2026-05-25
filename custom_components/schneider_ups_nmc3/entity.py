@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ipaddress import IPv6Address, ip_address
 from typing import TYPE_CHECKING
 
 from homeassistant.helpers.device_registry import (
@@ -38,6 +39,7 @@ class SchneiderUPSNMC3Entity(CoordinatorEntity[SchneiderUPSNMC3Coordinator]):
         """Return device registry information."""
         data = self.coordinator.data
         device_info = DeviceInfo(
+            configuration_url=_configuration_url(self.coordinator.host),
             identifiers={(DOMAIN, self.coordinator.device_id)},
             manufacturer=data.manufacturer if data else "Schneider Electric",
             model=data.model if data else None,
@@ -51,3 +53,15 @@ class SchneiderUPSNMC3Entity(CoordinatorEntity[SchneiderUPSNMC3Coordinator]):
             }
 
         return device_info
+
+
+def _configuration_url(host: str) -> str:
+    """Return the NMC web configuration URL for a host."""
+    try:
+        address = ip_address(host)
+    except ValueError:
+        return f"http://{host}"
+
+    if isinstance(address, IPv6Address):
+        return f"http://[{address.compressed}]"
+    return f"http://{address}"
