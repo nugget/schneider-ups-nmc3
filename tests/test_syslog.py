@@ -6,6 +6,7 @@ import sys
 import unittest
 from importlib import util
 from pathlib import Path
+from typing import Any, cast
 
 SYSLOG_PATH = (
     Path(__file__).resolve().parents[1]
@@ -23,6 +24,12 @@ SYSLOG_SPEC.loader.exec_module(syslog)
 
 class ParseSyslogMessageTest(unittest.TestCase):
     """Test NMC syslog message parsing."""
+
+    def test_defines_default_listener_settings(self) -> None:
+        """Expose the default local syslog listener settings."""
+        self.assertEqual(syslog.DEFAULT_SYSLOG_BIND_ADDRESS, "0.0.0.0")
+        self.assertTrue(syslog.DEFAULT_SYSLOG_ENABLED)
+        self.assertEqual(syslog.DEFAULT_SYSLOG_PORT, 1514)
 
     def test_parses_nmc3_test_message(self) -> None:
         """Parse the RFC5424-ish NMC3 syslog test format."""
@@ -142,6 +149,23 @@ class ParseSyslogMessageTest(unittest.TestCase):
                 source_port=514,
                 coordinators_by_host={"192.0.2.10": _FakeCoordinator("192.0.2.10")},
             )
+
+
+class SyslogPushManagerTest(unittest.TestCase):
+    """Test syslog push manager listener configuration helpers."""
+
+    def test_reports_listener_configuration(self) -> None:
+        """Report whether the manager matches requested listener settings."""
+        manager = syslog.SyslogPushManager(
+            cast("Any", object()),
+            bind_address="127.0.0.1",
+            port=1515,
+        )
+
+        self.assertTrue(manager.is_idle)
+        self.assertTrue(manager.is_configured_for("127.0.0.1", 1515))
+        self.assertFalse(manager.is_configured_for("0.0.0.0", 1515))
+        self.assertFalse(manager.is_configured_for("127.0.0.1", 1514))
 
 
 class _FakeCoordinator:

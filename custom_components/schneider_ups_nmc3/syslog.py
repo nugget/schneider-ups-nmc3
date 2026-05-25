@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_SYSLOG_BIND_ADDRESS = "0.0.0.0"
+DEFAULT_SYSLOG_ENABLED = True
 DEFAULT_SYSLOG_PORT = 1514
 RFC5424_RE = re.compile(
     r"^<(?P<priority>\d+)>(?P<version>\d+) "
@@ -165,6 +166,11 @@ class SyslogPushManager:
         self._transport = None
 
     @property
+    def is_idle(self) -> bool:
+        """Return whether the listener has no active registrations."""
+        return not self._coordinators_by_host
+
+    @property
     def bind_address(self) -> str:
         """Return the syslog listener bind address."""
         return self._bind_address
@@ -173,6 +179,10 @@ class SyslogPushManager:
     def port(self) -> int:
         """Return the syslog listener UDP port."""
         return self._port
+
+    def is_configured_for(self, bind_address: str, port: int) -> bool:
+        """Return whether the listener uses the requested bind address and port."""
+        return self._bind_address == bind_address and self._port == port
 
     async def _async_start(self) -> None:
         """Start the UDP listener if it is not already running."""

@@ -7,9 +7,21 @@ from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 
-from .const import DOMAIN, PLATFORMS, SYSLOG_MANAGER
+from .const import (
+    CONF_SYSLOG_BIND_ADDRESS,
+    CONF_SYSLOG_ENABLED,
+    CONF_SYSLOG_PORT,
+    DOMAIN,
+    PLATFORMS,
+    SYSLOG_MANAGER,
+)
 from .coordinator import SchneiderUPSNMC3Coordinator
-from .syslog import SyslogPushManager
+from .syslog import (
+    DEFAULT_SYSLOG_BIND_ADDRESS,
+    DEFAULT_SYSLOG_ENABLED,
+    DEFAULT_SYSLOG_PORT,
+    SyslogPushManager,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -64,7 +76,42 @@ async def _async_register_syslog(
     coordinator: SchneiderUPSNMC3Coordinator,
 ) -> None:
     """Register a config entry with the shared syslog listener."""
-    manager = _syslog_manager(hass)
+    if not bool(
+        entry.options.get(
+            CONF_SYSLOG_ENABLED,
+            entry.data.get(CONF_SYSLOG_ENABLED, DEFAULT_SYSLOG_ENABLED),
+        )
+    ):
+        _LOGGER.debug("Schneider UPS NMC3 syslog listener disabled for %s", entry.title)
+        return
+
+    bind_address = str(
+        entry.options.get(
+            CONF_SYSLOG_BIND_ADDRESS,
+            entry.data.get(CONF_SYSLOG_BIND_ADDRESS, DEFAULT_SYSLOG_BIND_ADDRESS),
+        )
+    )
+    port = int(
+        entry.options.get(
+            CONF_SYSLOG_PORT,
+            entry.data.get(CONF_SYSLOG_PORT, DEFAULT_SYSLOG_PORT),
+        )
+    )
+    manager = _syslog_manager(hass, bind_address=bind_address, port=port)
+    if not manager.is_configured_for(bind_address, port):
+        _LOGGER.warning(
+            (
+                "Could not register Schneider UPS NMC3 syslog listener for %s "
+                "on %s:%s because the shared listener is already using %s:%s"
+            ),
+            entry.title,
+            bind_address,
+            port,
+            manager.bind_address,
+            manager.port,
+        )
+        return
+
     try:
         unregister = await manager.async_register(coordinator)
     except OSError as err:
@@ -79,12 +126,23 @@ async def _async_register_syslog(
     entry.async_on_unload(unregister)
 
 
-def _syslog_manager(hass: HomeAssistant) -> SyslogPushManager:
+def _syslog_manager(
+    hass: HomeAssistant,
+    *,
+    bind_address: str,
+    port: int,
+) -> SyslogPushManager:
     """Return the shared syslog push manager."""
     domain_data = hass.data.setdefault(DOMAIN, {})
     manager = domain_data.get(SYSLOG_MANAGER)
-    if not isinstance(manager, SyslogPushManager):
-        manager = SyslogPushManager(hass)
-        domain_data[SYSLOG_MANAGER] = manager
+    if isinstance(manager, SyslogPushManager):
+        if manager.is_configured_for(bind_address, port):
+            return manager
+        if not manager.is_idle:
+            return manager
+        manager.close()
+
+    manager = SyslogPushManager(hass, bind_address=bind_address, port=port)
+    domain_data[SYSLOG_MANAGER] = manager
 
     return manager
