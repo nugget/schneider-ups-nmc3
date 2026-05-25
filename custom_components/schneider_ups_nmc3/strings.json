@@ -65,6 +65,11 @@
         "name": "On battery"
       }
     },
+    "event": {
+      "syslog_event": {
+        "name": "Syslog event"
+      }
+    },
     "sensor": {
       "alarm_count": {
         "name": "Alarm count"

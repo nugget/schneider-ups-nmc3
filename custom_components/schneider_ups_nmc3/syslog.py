@@ -39,6 +39,7 @@ SEVERITY = {
     6: "informational",
     7: "debug",
 }
+SYSLOG_EVENT_TYPES = tuple(SEVERITY.values())
 
 FACILITY = {
     0: "kernel",
@@ -309,6 +310,30 @@ def route_syslog_datagram(
             event=parse_syslog_message(raw),
         ),
     )
+
+
+def syslog_event_state_data(event: RoutedSyslogEvent) -> dict[str, int | str]:
+    """Return Home Assistant event state data for a routed syslog event."""
+    syslog_event = event.event
+    state_data: dict[str, int | str] = {
+        "source_host": event.source_host,
+        "source_port": event.source_port,
+        "priority": syslog_event.priority,
+        "facility": syslog_event.facility,
+        "severity": syslog_event.severity,
+        "hostname": syslog_event.hostname,
+        "app_name": syslog_event.app_name,
+        "proc_id": syslog_event.proc_id,
+        "msg_id": syslog_event.msg_id,
+        "timestamp": syslog_event.timestamp.isoformat(),
+        "message": syslog_event.event_text,
+    }
+    if syslog_event.event_category is not None:
+        state_data["category"] = syslog_event.event_category
+    if syslog_event.structured_data != "-":
+        state_data["structured_data"] = syslog_event.structured_data
+
+    return state_data
 
 
 def _event_category(proc_id: str, msg_id: str) -> str | None:
