@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import Mock
 
 import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.selector import TextSelector, TextSelectorType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 import custom_components.schneider_ups_nmc3.config_flow as config_flow_module
@@ -29,6 +30,7 @@ from custom_components.schneider_ups_nmc3.snmp import (
     AUTH_PROTOCOL_SHA,
     PRIVACY_PROTOCOL_AES,
     SNMP_VERSION_2C,
+    SNMP_VERSION_3,
     SNMPConnectionConfig,
     SNMPError,
     UPSData,
@@ -115,6 +117,48 @@ async def test_snmpv2c_config_flow_reports_connection_failure(
     assert result.get("step_id") == "snmpv2c"
     assert result.get("errors") == {"base": "cannot_connect"}
     assert _FailingConfigFlowSNMPClient.instances[0].closed
+
+
+async def test_config_flow_uses_password_selectors_for_snmp_secrets(
+    hass: HomeAssistant,
+) -> None:
+    """Use password inputs for SNMP community strings and passphrases."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        },
+    )
+
+    data_schema = result.get("data_schema")
+    assert data_schema is not None
+    assert _schema_selector(data_schema, CONF_COMMUNITY).config["type"] == (
+        TextSelectorType.PASSWORD
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_HOST: "192.0.2.11",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_3,
+        },
+    )
+
+    data_schema = result.get("data_schema")
+    assert data_schema is not None
+    assert _schema_selector(data_schema, CONF_AUTH_KEY).config["type"] == (
+        TextSelectorType.PASSWORD
+    )
+    assert _schema_selector(data_schema, CONF_PRIVACY_KEY).config["type"] == (
+        TextSelectorType.PASSWORD
+    )
 
 
 async def test_options_flow_saves_polling_and_syslog_options(
@@ -301,6 +345,14 @@ async def test_reconfigure_flow_rejects_a_different_ups(
         CONF_COMMUNITY: "public",
     }
     reload_mock.assert_not_called()
+
+
+def _schema_selector(data_schema: Any, key: str) -> TextSelector:
+    for marker, selector in data_schema.schema.items():
+        if getattr(marker, "schema", None) == key:
+            assert isinstance(selector, TextSelector)
+            return selector
+    raise AssertionError(f"schema field not found: {key}")
 
 
 class _FakeConfigFlowSNMPClient:

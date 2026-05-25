@@ -16,6 +16,9 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
 from .const import (
@@ -344,7 +347,7 @@ def _snmpv2c_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     """Build the SNMPv2c credential schema."""
     return vol.Schema(
         {
-            _required(CONF_COMMUNITY, defaults, "public"): str,
+            _required(CONF_COMMUNITY, defaults, "public"): _password_selector(),
         }
     )
 
@@ -363,7 +366,7 @@ def _snmpv3_schema(defaults: Mapping[str, Any]) -> vol.Schema:
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
-            _optional(CONF_AUTH_KEY, defaults): str,
+            _optional(CONF_AUTH_KEY, defaults): _password_selector(),
             _required(
                 CONF_PRIVACY_PROTOCOL,
                 defaults,
@@ -377,9 +380,14 @@ def _snmpv3_schema(defaults: Mapping[str, Any]) -> vol.Schema:
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
-            _optional(CONF_PRIVACY_KEY, defaults): str,
+            _optional(CONF_PRIVACY_KEY, defaults): _password_selector(),
         }
     )
+
+
+def _password_selector() -> TextSelector:
+    """Return a password-style text selector for SNMP secrets."""
+    return TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 
 
 def _required(
