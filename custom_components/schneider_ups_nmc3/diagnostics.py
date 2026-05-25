@@ -38,7 +38,7 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": {
             "data": async_redact_data(entry.data, TO_REDACT),
-            "options": dict(entry.options),
+            "options": async_redact_data(entry.options, TO_REDACT),
         },
         "last_update_success": coordinator.last_update_success,
         "device": {
