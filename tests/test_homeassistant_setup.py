@@ -48,6 +48,7 @@ def test_configuration_url_formats_ip_hosts() -> None:
     """Format NMC web configuration URLs for IP hosts."""
     assert entity_module._configuration_url("192.0.2.10") == "http://192.0.2.10"
     assert entity_module._configuration_url("2001:db8::1") == "http://[2001:db8::1]"
+    assert entity_module._configuration_url("fe80::1%eth0") == "http://[fe80::1%25eth0]"
 
 
 async def test_config_entry_sets_up_entities_and_unloads(

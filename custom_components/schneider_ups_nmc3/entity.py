@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ipaddress import IPv6Address, ip_address
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 from homeassistant.helpers.device_registry import (
     CONNECTION_NETWORK_MAC,
@@ -63,5 +64,9 @@ def _configuration_url(host: str) -> str:
         return f"http://{host}"
 
     if isinstance(address, IPv6Address):
-        return f"http://[{address.compressed}]"
+        host_text = address.compressed
+        if address.scope_id:
+            address_text = host_text[: -(len(address.scope_id) + 1)]
+            host_text = f"{address_text}%25{quote(address.scope_id, safe='')}"
+        return f"http://[{host_text}]"
     return f"http://{address}"
