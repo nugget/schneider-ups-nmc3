@@ -81,8 +81,8 @@ PRIVACY_PROTOCOL_OPTIONS = {
 }
 CONFIGURATION_ERROR_MESSAGES = {
     "SNMPv3 requires a username": {CONF_USERNAME: "missing_username"},
-    "SNMPv3 authentication key is required": {CONF_AUTH_KEY: "missing_auth_key"},
-    "SNMPv3 privacy key is required": {CONF_PRIVACY_KEY: "missing_privacy_key"},
+    "SNMPv3 authentication passphrase is required": {CONF_AUTH_KEY: "missing_auth_key"},
+    "SNMPv3 privacy passphrase is required": {CONF_PRIVACY_KEY: "missing_privacy_key"},
     "SNMPv3 privacy requires authentication": {
         CONF_AUTH_PROTOCOL: "privacy_requires_auth"
     },
