@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
@@ -63,6 +64,7 @@ class UPSData:
     serial_number: str | None
     firmware_version: str | None
     agent_version: str | None
+    mac_address: str | None
     unique_id: str
 
     def value(self, key: str, default: Any = None) -> Any:
@@ -136,6 +138,14 @@ POWERNET_OIDS: dict[str, str] = {
 }
 
 OIDS: dict[str, str] = {**RFC1628_OIDS, **POWERNET_OIDS}
+
+IF_TYPE_OID = "1.3.6.1.2.1.2.2.1.3"
+IF_PHYS_ADDRESS_OID = "1.3.6.1.2.1.2.2.1.6"
+ETHERNET_CSMACD_IF_TYPE = 6
+MAX_INTERFACE_ROWS = 64
+MAC_ADDRESS_OCTETS = 6
+VAR_BIND_PARTS = 2
+MAC_PAIR_RE = re.compile(r"[0-9A-Fa-f]{2}")
 
 BATTERY_STATUS = {
     1: "unknown",
@@ -231,11 +241,22 @@ class SNMPClient:
         """Fetch and normalize UPS data."""
         raw_by_oid = await self.async_get(tuple(OIDS.values()))
         raw_by_key = {key: raw_by_oid.get(oid) for key, oid in OIDS.items()}
+        try:
+            raw_by_key["mac_address"] = await self.async_get_mac_address()
+        except SNMPError:
+            raw_by_key["mac_address"] = None
+
         return build_ups_data(
             raw_by_key,
             fallback_name=self.config.host,
             fallback_unique_id=f"{self.config.host}:{self.config.port}",
         )
+
+    async def async_get_mac_address(self) -> str | None:
+        """Fetch the management card MAC address from IF-MIB."""
+        interface_types = await self._async_walk_column(IF_TYPE_OID)
+        physical_addresses = await self._async_walk_column(IF_PHYS_ADDRESS_OID)
+        return _select_interface_mac_address(interface_types, physical_addresses)
 
     async def async_get(self, oids: Sequence[str]) -> dict[str, Any]:
         """Fetch OIDs from the configured SNMP agent."""
@@ -282,6 +303,70 @@ class SNMPClient:
         values: dict[str, Any] = {}
         for oid, result in zip(oids, result_binds, strict=True):
             values[oid] = _coerce_snmp_value(result[1])
+
+        return values
+
+    async def _async_walk_column(self, column_oid: str) -> dict[str, Any]:
+        """Walk one SNMP table column and return values keyed by row index."""
+        from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
+            ContextData,
+            ObjectIdentity,
+            ObjectType,
+            UdpTransportTarget,
+            next_cmd,
+        )
+
+        auth_data = self._auth_data()
+        transport_target = await UdpTransportTarget.create(
+            (self.config.host, self.config.port),
+            timeout=self.config.timeout,
+            retries=self.config.retries,
+        )
+        current_oid = column_oid
+        values: dict[str, Any] = {}
+
+        for _ in range(MAX_INTERFACE_ROWS):
+            try:
+                (
+                    error_indication,
+                    error_status,
+                    error_index,
+                    result_binds,
+                ) = await next_cmd(
+                    self._engine(),
+                    auth_data,
+                    transport_target,
+                    ContextData(),
+                    ObjectType(ObjectIdentity(current_oid)),
+                    lookupMib=False,
+                )
+            except Exception as err:
+                raise SNMPError(str(err)) from err
+
+            if error_indication:
+                raise SNMPError(str(error_indication))
+
+            if error_status:
+                pretty_print = getattr(error_status, "prettyPrint", None)
+                error_text = (
+                    pretty_print() if callable(pretty_print) else str(error_status)
+                )
+                raise SNMPError(f"{error_text} at row {error_index}")
+
+            if not result_binds:
+                break
+
+            result = _first_result_bind(result_binds)
+            if result is None:
+                break
+
+            result_oid = str(result[0])
+            row_index = _row_index(column_oid, result_oid)
+            if row_index is None:
+                break
+
+            values[row_index] = result[1]
+            current_oid = result_oid
 
         return values
 
@@ -467,6 +552,7 @@ def build_ups_data(
         raw.get("self_test_result_code"),
     )
     values["self_test_last_date"] = _date(raw.get("self_test_last_date_raw"))
+    values["mac_address"] = _format_mac_address(raw.get("mac_address"))
 
     manufacturer = _first_text(raw, "manufacturer") or "Schneider Electric"
     model = _first_text(raw, "model", "apc_model")
@@ -489,6 +575,7 @@ def build_ups_data(
         serial_number=serial_number,
         firmware_version=firmware_version,
         agent_version=agent_version,
+        mac_address=values["mac_address"],
         unique_id=_slug(unique_id),
     )
 
@@ -504,6 +591,97 @@ def _coerce_snmp_value(value: Any) -> int | str | None:
         return int(value)
     except (TypeError, ValueError):
         return pretty
+
+
+def _select_interface_mac_address(
+    interface_types: Mapping[str, Any],
+    physical_addresses: Mapping[str, Any],
+) -> str | None:
+    """Return the best NMC MAC address from IF-MIB table values."""
+    fallback_mac: str | None = None
+    for row_index in sorted(physical_addresses, key=_row_sort_key):
+        mac_address = _format_mac_address(physical_addresses[row_index])
+        if mac_address is None:
+            continue
+
+        if fallback_mac is None:
+            fallback_mac = mac_address
+
+        if _int(interface_types.get(row_index)) == ETHERNET_CSMACD_IF_TYPE:
+            return mac_address
+
+    return fallback_mac
+
+
+def _first_result_bind(result_binds: Sequence[Any]) -> Any | None:
+    """Return the first SNMP result binding across PySNMP return shapes."""
+    first_result = result_binds[0]
+    if _looks_like_var_bind(first_result):
+        return first_result
+    if not isinstance(first_result, list | tuple):
+        return first_result
+    if not first_result:
+        return None
+
+    nested_result = first_result[0]
+    if _looks_like_var_bind(nested_result):
+        return nested_result
+
+    return None
+
+
+def _looks_like_var_bind(value: Any) -> bool:
+    """Return whether a value resembles an SNMP `(oid, value)` binding."""
+    return (
+        not isinstance(value, str | bytes | bytearray)
+        and isinstance(value, list | tuple)
+        and len(value) == VAR_BIND_PARTS
+    )
+
+
+def _format_mac_address(value: Any) -> str | None:
+    """Return a normalized MAC address from an SNMP physical address."""
+    octets = _mac_octets(value)
+    if octets is None or len(octets) != MAC_ADDRESS_OCTETS or not any(octets):
+        return None
+
+    return ":".join(f"{octet:02x}" for octet in octets)
+
+
+def _mac_octets(value: Any) -> bytes | None:
+    """Extract raw MAC octets from common SNMP value representations."""
+    if value is None:
+        return None
+
+    octets: bytes | None = None
+    as_octets = getattr(value, "asOctets", None)
+    if callable(as_octets):
+        raw_octets = as_octets()
+        if isinstance(raw_octets, bytes | bytearray | list | tuple):
+            octets = bytes(raw_octets)
+    elif isinstance(value, bytes | bytearray):
+        octets = bytes(value)
+    else:
+        text = str(value).strip()
+        pairs = MAC_PAIR_RE.findall(text) if text else []
+        if len(pairs) == MAC_ADDRESS_OCTETS:
+            octets = bytes(int(pair, 16) for pair in pairs)
+
+    return octets
+
+
+def _row_index(column_oid: str, result_oid: str) -> str | None:
+    """Return the table row index when a result belongs to the requested column."""
+    prefix = f"{column_oid}."
+    if not result_oid.startswith(prefix):
+        return None
+
+    return result_oid.removeprefix(prefix)
+
+
+def _row_sort_key(row_index: str) -> tuple[int, ...]:
+    """Return a numeric sort key for dotted SNMP table indexes."""
+    return tuple(_int(part) or 0 for part in row_index.split("."))
 
 
 def _first_text(raw: Mapping[str, Any], *keys: str) -> str | None:
