@@ -56,6 +56,8 @@ from .syslog import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from homeassistant.config_entries import ConfigFlowResult
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,34 +112,25 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HOST): str,
-                    vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
-                    vol.Required(
-                        CONF_SNMP_VERSION, default=SNMP_VERSION_2C
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": value, "label": label}
-                                for value, label in SNMP_VERSION_OPTIONS.items()
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=10,
-                            max=3600,
-                            mode=NumberSelectorMode.BOX,
-                            unit_of_measurement="seconds",
-                        )
-                    ),
-                }
-            ),
+            data_schema=_base_schema(),
             errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle user-initiated reconfiguration of an existing entry."""
+        entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            self._base_input = user_input
+            if user_input[CONF_SNMP_VERSION] == SNMP_VERSION_3:
+                return await self.async_step_snmpv3()
+            return await self.async_step_snmpv2c()
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_base_schema(entry.data),
         )
 
     async def async_step_snmpv2c(
@@ -150,15 +143,11 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
             data = {**self._base_input, **user_input}
             errors = await self._async_validate_input(data)
             if not errors:
-                return await self._async_create_entry(data)
+                return self._async_finish_flow(data)
 
         return self.async_show_form(
             step_id="snmpv2c",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_COMMUNITY, default="public"): str,
-                }
-            ),
+            data_schema=_snmpv2c_schema(self._credentials_defaults()),
             errors=errors,
         )
 
@@ -172,39 +161,11 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
             data = {**self._base_input, **user_input}
             errors = await self._async_validate_input(data)
             if not errors:
-                return await self._async_create_entry(data)
+                return self._async_finish_flow(data)
 
         return self.async_show_form(
             step_id="snmpv3",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_USERNAME): str,
-                    vol.Required(
-                        CONF_AUTH_PROTOCOL, default=AUTH_PROTOCOL_SHA
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": value, "label": label}
-                                for value, label in AUTH_PROTOCOL_OPTIONS.items()
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Optional(CONF_AUTH_KEY): str,
-                    vol.Required(
-                        CONF_PRIVACY_PROTOCOL, default=PRIVACY_PROTOCOL_AES
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": value, "label": label}
-                                for value, label in PRIVACY_PROTOCOL_OPTIONS.items()
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Optional(CONF_PRIVACY_KEY): str,
-                }
-            ),
+            data_schema=_snmpv3_schema(self._credentials_defaults()),
             errors=errors,
         )
 
@@ -233,20 +194,37 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
                 client.close()
 
         await self.async_set_unique_id(ups_data.unique_id)
-        self._abort_if_unique_id_configured(
-            updates={
-                CONF_HOST: data[CONF_HOST],
-                CONF_PORT: data[CONF_PORT],
-            }
-        )
+        if self.source == config_entries.SOURCE_RECONFIGURE:
+            self._abort_if_unique_id_mismatch(reason="wrong_device")
+        else:
+            self._abort_if_unique_id_configured(
+                updates={
+                    CONF_HOST: data[CONF_HOST],
+                    CONF_PORT: data[CONF_PORT],
+                }
+            )
         data["_title"] = ups_data.name
 
         return {}
 
-    async def _async_create_entry(self, data: dict[str, Any]) -> ConfigFlowResult:
-        """Create the config entry."""
-        title = data.pop("_title", data[CONF_HOST])
-        return self.async_create_entry(title=title, data=data)
+    def _async_finish_flow(self, data: dict[str, Any]) -> ConfigFlowResult:
+        """Create or update the config entry after validation."""
+        title = data.get("_title", data[CONF_HOST])
+        entry_data = _entry_data(data)
+        if self.source == config_entries.SOURCE_RECONFIGURE:
+            return self.async_update_reload_and_abort(
+                self._get_reconfigure_entry(),
+                title=title,
+                data=entry_data,
+            )
+
+        return self.async_create_entry(title=title, data=entry_data)
+
+    def _credentials_defaults(self) -> Mapping[str, Any]:
+        """Return saved credential defaults for reconfigure flows."""
+        if self.source != config_entries.SOURCE_RECONFIGURE:
+            return {}
+        return self._get_reconfigure_entry().data
 
 
 class SchneiderUPSNMC3OptionsFlow(config_entries.OptionsFlow):
@@ -315,6 +293,105 @@ class SchneiderUPSNMC3OptionsFlow(config_entries.OptionsFlow):
                 }
             ),
         )
+
+
+def _base_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+    """Build the shared UPS connection schema."""
+    defaults = defaults or {}
+    return vol.Schema(
+        {
+            _required(CONF_HOST, defaults): str,
+            _required(CONF_PORT, defaults, DEFAULT_PORT): int,
+            _required(CONF_SNMP_VERSION, defaults, SNMP_VERSION_2C): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        {"value": value, "label": label}
+                        for value, label in SNMP_VERSION_OPTIONS.items()
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            _required(
+                CONF_SCAN_INTERVAL,
+                defaults,
+                DEFAULT_SCAN_INTERVAL,
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=10,
+                    max=3600,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="seconds",
+                )
+            ),
+        }
+    )
+
+
+def _snmpv2c_schema(defaults: Mapping[str, Any]) -> vol.Schema:
+    """Build the SNMPv2c credential schema."""
+    return vol.Schema(
+        {
+            _required(CONF_COMMUNITY, defaults, "public"): str,
+        }
+    )
+
+
+def _snmpv3_schema(defaults: Mapping[str, Any]) -> vol.Schema:
+    """Build the SNMPv3 credential schema."""
+    return vol.Schema(
+        {
+            _required(CONF_USERNAME, defaults): str,
+            _required(CONF_AUTH_PROTOCOL, defaults, AUTH_PROTOCOL_SHA): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        {"value": value, "label": label}
+                        for value, label in AUTH_PROTOCOL_OPTIONS.items()
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            _optional(CONF_AUTH_KEY, defaults): str,
+            _required(
+                CONF_PRIVACY_PROTOCOL,
+                defaults,
+                PRIVACY_PROTOCOL_AES,
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        {"value": value, "label": label}
+                        for value, label in PRIVACY_PROTOCOL_OPTIONS.items()
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            _optional(CONF_PRIVACY_KEY, defaults): str,
+        }
+    )
+
+
+def _required(
+    key: str,
+    defaults: Mapping[str, Any],
+    fallback: Any = vol.UNDEFINED,
+) -> Any:
+    """Return a required voluptuous marker with a default when available."""
+    if key in defaults:
+        return vol.Required(key, default=defaults[key])
+    if fallback is not vol.UNDEFINED:
+        return vol.Required(key, default=fallback)
+    return vol.Required(key)
+
+
+def _optional(key: str, defaults: Mapping[str, Any]) -> Any:
+    """Return an optional voluptuous marker with a default when available."""
+    if key in defaults:
+        return vol.Optional(key, default=defaults[key])
+    return vol.Optional(key)
+
+
+def _entry_data(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Return config entry data without flow-private values."""
+    return {key: value for key, value in data.items() if key != "_title"}
 
 
 def _config_from_data(data: dict[str, Any]) -> SNMPConnectionConfig:

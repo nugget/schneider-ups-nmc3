@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
+from unittest.mock import Mock
 
 import pytest
 from homeassistant import config_entries
@@ -151,6 +152,139 @@ async def test_options_flow_saves_polling_and_syslog_options(
     }
 
 
+async def test_reconfigure_flow_updates_entry_and_schedules_reload(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Update SNMP settings for the same UPS through a reconfigure flow."""
+    _FakeConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
+    reload_mock = Mock()
+    monkeypatch.setattr(hass.config_entries, "async_schedule_reload", reload_mock)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="as1234567890",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "192.0.2.20",
+            CONF_PORT: 1161,
+            CONF_SCAN_INTERVAL: 90,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "snmpv2c"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "private"},
+    )
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "reconfigure_successful"
+    assert entry.data == {
+        CONF_HOST: "192.0.2.20",
+        CONF_PORT: 1161,
+        CONF_SCAN_INTERVAL: 90,
+        CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        CONF_COMMUNITY: "private",
+    }
+    assert _FakeConfigFlowSNMPClient.instances[0].config == SNMPConnectionConfig(
+        host="192.0.2.20",
+        port=1161,
+        version=SNMP_VERSION_2C,
+        community="private",
+        timeout=2.0,
+        retries=1,
+    )
+    assert _FakeConfigFlowSNMPClient.instances[0].closed
+    reload_mock.assert_called_once_with(entry.entry_id)
+
+
+async def test_reconfigure_flow_rejects_a_different_ups(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject reconfiguration when SNMP identity belongs to another UPS."""
+    _DifferentDeviceConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(
+        config_flow_module,
+        "SNMPClient",
+        _DifferentDeviceConfigFlowSNMPClient,
+    )
+    reload_mock = Mock()
+    monkeypatch.setattr(hass.config_entries, "async_schedule_reload", reload_mock)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="as1234567890",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "192.0.2.30",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "public"},
+    )
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "wrong_device"
+    assert entry.data == {
+        CONF_HOST: "192.0.2.10",
+        CONF_PORT: 161,
+        CONF_SCAN_INTERVAL: 60,
+        CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        CONF_COMMUNITY: "public",
+    }
+    reload_mock.assert_not_called()
+
+
 class _FakeConfigFlowSNMPClient:
     """SNMP client fake that validates config-flow inputs."""
 
@@ -189,3 +323,23 @@ class _FailingConfigFlowSNMPClient(_FakeConfigFlowSNMPClient):
     async def async_get_data(self) -> UPSData:
         """Raise a connection failure during validation."""
         raise SNMPError("timeout")
+
+
+class _DifferentDeviceConfigFlowSNMPClient(_FakeConfigFlowSNMPClient):
+    """SNMP client fake that returns a different device identity."""
+
+    instances: ClassVar[list[_DifferentDeviceConfigFlowSNMPClient]] = []
+
+    async def async_get_data(self) -> UPSData:
+        """Return identity data for another UPS."""
+        return UPSData(
+            values={},
+            name="Another Rack UPS",
+            manufacturer="Schneider Electric",
+            model="Smart-UPS 3000",
+            serial_number="AS0000000000",
+            firmware_version="UPS 15.0 / NMC 3.2.1",
+            agent_version="NMC 3.2.1",
+            mac_address="00:c0:b7:65:43:21",
+            unique_id="as0000000000",
+        )

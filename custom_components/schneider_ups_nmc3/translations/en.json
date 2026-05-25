@@ -11,6 +11,15 @@
           "scan_interval": "Scan interval"
         }
       },
+      "reconfigure": {
+        "title": "Reconfigure UPS network management card",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "snmp_version": "SNMP version",
+          "scan_interval": "Scan interval"
+        }
+      },
       "snmpv2c": {
         "title": "SNMPv2c credentials",
         "data": {
@@ -37,7 +46,9 @@
       "privacy_requires_auth": "Privacy requires authentication."
     },
     "abort": {
-      "already_configured": "This UPS is already configured."
+      "already_configured": "This UPS is already configured.",
+      "reconfigure_successful": "UPS configuration updated.",
+      "wrong_device": "The SNMP settings appear to reach a different UPS."
     }
   },
   "options": {
