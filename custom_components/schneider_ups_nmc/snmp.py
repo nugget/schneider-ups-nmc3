@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 import warnings
 from dataclasses import dataclass
@@ -283,7 +284,7 @@ class SNMPClient:
 
         try:
             error_indication, error_status, error_index, result_binds = await get_cmd(
-                self._engine(),
+                await self._async_engine(),
                 auth_data,
                 await UdpTransportTarget.create(
                     (self.config.host, self.config.port),
@@ -349,7 +350,7 @@ class SNMPClient:
                     error_index,
                     result_binds,
                 ) = await next_cmd(
-                    self._engine(),
+                    await self._async_engine(),
                     auth_data,
                     transport_target,
                     ContextData(),
@@ -425,16 +426,20 @@ class SNMPClient:
 
         self._snmp_engine = None
 
-    def _engine(self) -> Any:
+    async def _async_engine(self) -> Any:
         """Return a lazily-created SNMP engine."""
         if self._snmp_engine is None:
-            from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
-                SnmpEngine,
-            )
-
-            self._snmp_engine = SnmpEngine()
+            self._snmp_engine = await asyncio.to_thread(self._create_snmp_engine)
 
         return self._snmp_engine
+
+    def _create_snmp_engine(self) -> Any:
+        """Create the PySNMP engine outside the event loop."""
+        from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
+            SnmpEngine,
+        )
+
+        return SnmpEngine()
 
     def _auth_data(self) -> Any:
         """Build PySNMP authentication data."""

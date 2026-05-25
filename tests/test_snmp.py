@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 import unittest
 import warnings
 from datetime import date
@@ -149,6 +150,47 @@ class BuildUPSDataTest(unittest.TestCase):
         )
         self.assertEqual(values[oids[0]], f"value-{oids[0]}")
         self.assertEqual(values[oids[-1]], f"value-{oids[-1]}")
+
+    def test_snmp_engine_is_created_outside_event_loop_thread(self) -> None:
+        """PySNMP engine startup runs outside the asyncio event loop."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that records where its engine is created."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.engine_thread: int | None = None
+                self.create_count = 0
+
+            def _create_snmp_engine(self) -> object:
+                """Record the thread used for PySNMP engine initialization."""
+                self.create_count += 1
+                self.engine_thread = threading.get_ident()
+                return object()
+
+        async def get_engine(client: FakeSNMPClient) -> object:
+            """Return the lazily created SNMP engine."""
+            return await client._async_engine()
+
+        client = FakeSNMPClient()
+        event_loop_thread: int | None = None
+
+        async def run_probe() -> tuple[object, object]:
+            """Create and reuse the SNMP engine from inside an event loop."""
+            nonlocal event_loop_thread
+            event_loop_thread = threading.get_ident()
+            first_engine = await get_engine(client)
+            second_engine = await get_engine(client)
+            return first_engine, second_engine
+
+        first_engine, second_engine = asyncio.run(run_probe())
+
+        self.assertIs(first_engine, second_engine)
+        self.assertEqual(client.create_count, 1)
+        self.assertIsNotNone(client.engine_thread)
+        self.assertIsNotNone(event_loop_thread)
+        self.assertNotEqual(client.engine_thread, event_loop_thread)
 
     def test_async_get_data_tolerates_mac_walk_failure(self) -> None:
         """Main UPS pulls still succeed when optional IF-MIB discovery fails."""
