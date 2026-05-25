@@ -11,7 +11,7 @@ release-prepare version:
     requested_version='{{version}}'
     manifest_version="${requested_version#v}"
     tag="v$manifest_version"
-    manifest='custom_components/schneider_ups_nmc3/manifest.json'
+    manifest='custom_components/schneider_ups_nmc/manifest.json'
 
     if [[ ! "$manifest_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
       echo "release version must look like 0.1.0, v0.1.0, 0.1.0-rc.1, or v0.1.0-rc.1" >&2
@@ -59,7 +59,7 @@ release-publish version:
     requested_version='{{version}}'
     manifest_version="${requested_version#v}"
     tag="v$manifest_version"
-    manifest='custom_components/schneider_ups_nmc3/manifest.json'
+    manifest='custom_components/schneider_ups_nmc/manifest.json'
 
     if [[ ! "$manifest_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
       echo "release version must look like 0.1.0, v0.1.0, 0.1.0-rc.1, or v0.1.0-rc.1" >&2
@@ -139,9 +139,9 @@ spellcheck:
     uv run codespell --ignore-words-list hass AGENTS.md README.md custom_components tests hacs.json justfile pyproject.toml .github/workflows
 
 json:
-    uv run python -m json.tool custom_components/schneider_ups_nmc3/manifest.json > /dev/null
-    uv run python -m json.tool custom_components/schneider_ups_nmc3/strings.json > /dev/null
-    uv run python -m json.tool custom_components/schneider_ups_nmc3/translations/en.json > /dev/null
+    uv run python -m json.tool custom_components/schneider_ups_nmc/manifest.json > /dev/null
+    uv run python -m json.tool custom_components/schneider_ups_nmc/strings.json > /dev/null
+    uv run python -m json.tool custom_components/schneider_ups_nmc/translations/en.json > /dev/null
     uv run python -m json.tool hacs.json > /dev/null
 
 yaml:

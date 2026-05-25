@@ -1,5 +1,5 @@
 {
-  "title": "Schneider Electric UPS NMC3",
+  "title": "APC UPS NMC",
   "config": {
     "step": {
       "user": {
@@ -67,7 +67,7 @@
   "issues": {
     "syslog_listener_conflict": {
       "title": "Syslog listener settings conflict",
-      "description": "The syslog listener for {name} could not start on {requested} because another Schneider Electric UPS NMC3 entry is already using {active}. Use the same syslog listener settings for all syslog-enabled UPS entries, or disable syslog for this entry."
+      "description": "The syslog listener for {name} could not start on {requested} because another APC UPS NMC entry is already using {active}. Use the same syslog listener settings for all syslog-enabled UPS entries, or disable syslog for this entry."
     },
     "syslog_listener_failed": {
       "title": "Syslog listener could not start",

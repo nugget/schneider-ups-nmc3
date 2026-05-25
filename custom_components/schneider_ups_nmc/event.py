@@ -1,4 +1,4 @@
-"""Event entities for Schneider Electric UPS NMC3."""
+"""Event entities for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from homeassistant.components.event import EventEntity, EventEntityDescription
 from homeassistant.const import EntityCategory
 from homeassistant.core import callback
 
-from .entity import SchneiderUPSNMC3Entity
+from .entity import SchneiderUPSNMCEntity
 from .syslog import SYSLOG_EVENT_TYPES, RoutedSyslogEvent, syslog_event_state_data
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from . import SchneiderUPSNMC3ConfigEntry
-    from .coordinator import SchneiderUPSNMC3Coordinator
+    from . import SchneiderUPSNMCConfigEntry
+    from .coordinator import SchneiderUPSNMCCoordinator
 
 
 SYSLOG_EVENT_DESCRIPTION = EventEntityDescription(
@@ -28,18 +28,18 @@ SYSLOG_EVENT_DESCRIPTION = EventEntityDescription(
 
 async def async_setup_entry(
     _hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Schneider Electric UPS NMC3 event entities."""
-    coordinator: SchneiderUPSNMC3Coordinator = entry.runtime_data
+    """Set up APC UPS NMC event entities."""
+    coordinator: SchneiderUPSNMCCoordinator = entry.runtime_data
     async_add_entities(
-        [SchneiderUPSNMC3SyslogEventEntity(coordinator, SYSLOG_EVENT_DESCRIPTION)]
+        [SchneiderUPSNMCSyslogEventEntity(coordinator, SYSLOG_EVENT_DESCRIPTION)]
     )
 
 
-class SchneiderUPSNMC3SyslogEventEntity(SchneiderUPSNMC3Entity, EventEntity):
-    """A Schneider Electric UPS NMC3 syslog event entity."""
+class SchneiderUPSNMCSyslogEventEntity(SchneiderUPSNMCEntity, EventEntity):
+    """An APC UPS NMC syslog event entity."""
 
     _attr_event_types: ClassVar[list[str]] = list(SYSLOG_EVENT_TYPES)
     entity_description: EventEntityDescription

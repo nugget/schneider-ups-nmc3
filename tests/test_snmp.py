@@ -1,4 +1,4 @@
-"""Tests for Schneider Electric UPS NMC3 SNMP normalization."""
+"""Tests for APC UPS NMC SNMP normalization."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 SNMP_PATH = (
     Path(__file__).resolve().parents[1]
     / "custom_components"
-    / "schneider_ups_nmc3"
+    / "schneider_ups_nmc"
     / "snmp.py"
 )
-SNMP_SPEC = util.spec_from_file_location("schneider_ups_nmc3_snmp", SNMP_PATH)
+SNMP_SPEC = util.spec_from_file_location("schneider_ups_nmc_snmp", SNMP_PATH)
 assert SNMP_SPEC is not None
 snmp = util.module_from_spec(SNMP_SPEC)
 sys.modules[SNMP_SPEC.name] = snmp

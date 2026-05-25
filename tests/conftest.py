@@ -1,4 +1,4 @@
-"""Pytest configuration for Schneider Electric UPS NMC3 tests."""
+"""Pytest configuration for APC UPS NMC tests."""
 
 from __future__ import annotations
 

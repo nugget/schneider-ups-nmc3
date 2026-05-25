@@ -1,4 +1,4 @@
-"""Config flow for Schneider Electric UPS NMC3."""
+"""Config flow for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -101,11 +101,11 @@ RECONFIGURE_REPLACED_DATA_KEYS = {
 }
 
 
-class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
+class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
     config_entries.ConfigFlow,
     domain=DOMAIN,  # pyright: ignore[reportCallIssue]
 ):
-    """Handle a config flow for Schneider Electric UPS NMC3."""
+    """Handle a config flow for APC UPS NMC."""
 
     VERSION = 1
 
@@ -188,9 +188,9 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
     @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> SchneiderUPSNMC3OptionsFlow:
+    ) -> SchneiderUPSNMCOptionsFlow:
         """Create the options flow."""
-        return SchneiderUPSNMC3OptionsFlow(config_entry)
+        return SchneiderUPSNMCOptionsFlow(config_entry)
 
     async def _async_validate_input(self, data: dict[str, Any]) -> dict[str, str]:
         """Validate the user input by querying the UPS."""
@@ -243,8 +243,8 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         return self._get_reconfigure_entry().data
 
 
-class SchneiderUPSNMC3OptionsFlow(config_entries.OptionsFlow):
-    """Handle options for Schneider Electric UPS NMC3."""
+class SchneiderUPSNMCOptionsFlow(config_entries.OptionsFlow):
+    """Handle options for APC UPS NMC."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize the options flow."""

@@ -1,4 +1,4 @@
-"""SNMP client and data normalization for Schneider Electric UPS NMC3."""
+"""SNMP client and data normalization for APC UPS NMC."""
 
 from __future__ import annotations
 

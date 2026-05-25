@@ -2575,7 +2575,7 @@ wheels = [
 ]
 
 [[package]]
-name = "schneider-ups-nmc3"
+name = "schneider-ups-nmc"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

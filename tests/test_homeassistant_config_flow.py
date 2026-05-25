@@ -1,4 +1,4 @@
-"""Home Assistant config flow tests for Schneider Electric UPS NMC3."""
+"""Home Assistant config flow tests for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.selector import TextSelector, TextSelectorType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-import custom_components.schneider_ups_nmc3.config_flow as config_flow_module
-from custom_components.schneider_ups_nmc3.const import (
+import custom_components.schneider_ups_nmc.config_flow as config_flow_module
+from custom_components.schneider_ups_nmc.const import (
     CONF_AUTH_KEY,
     CONF_AUTH_PROTOCOL,
     CONF_COMMUNITY,
@@ -26,7 +26,7 @@ from custom_components.schneider_ups_nmc3.const import (
     CONF_USERNAME,
     DOMAIN,
 )
-from custom_components.schneider_ups_nmc3.snmp import (
+from custom_components.schneider_ups_nmc.snmp import (
     AUTH_PROTOCOL_SHA,
     PRIVACY_PROTOCOL_AES,
     SNMP_VERSION_2C,

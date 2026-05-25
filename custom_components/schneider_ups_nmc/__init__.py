@@ -1,4 +1,4 @@
-"""Schneider Electric UPS NMC3 integration."""
+"""APC UPS NMC integration."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .const import (
     PLATFORMS,
     SYSLOG_MANAGER,
 )
-from .coordinator import SchneiderUPSNMC3Coordinator
+from .coordinator import SchneiderUPSNMCCoordinator
 from .syslog import (
     DEFAULT_SYSLOG_BIND_ADDRESS,
     DEFAULT_SYSLOG_ENABLED,
@@ -31,14 +31,14 @@ _LOGGER = logging.getLogger(__name__)
 SYSLOG_LISTENER_CONFLICT_ISSUE = "syslog_listener_conflict"
 SYSLOG_LISTENER_FAILED_ISSUE = "syslog_listener_failed"
 
-type SchneiderUPSNMC3ConfigEntry = ConfigEntry[SchneiderUPSNMC3Coordinator]
+type SchneiderUPSNMCConfigEntry = ConfigEntry[SchneiderUPSNMCCoordinator]
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: SchneiderUPSNMC3ConfigEntry
+    hass: HomeAssistant, entry: SchneiderUPSNMCConfigEntry
 ) -> bool:
-    """Set up Schneider Electric UPS NMC3 from a config entry."""
-    coordinator = SchneiderUPSNMC3Coordinator(hass, entry)
+    """Set up APC UPS NMC from a config entry."""
+    coordinator = SchneiderUPSNMCCoordinator(hass, entry)
     try:
         await coordinator.async_config_entry_first_refresh()
     except Exception:
@@ -54,29 +54,29 @@ async def async_setup_entry(
 
 
 async def async_unload_entry(
-    hass: HomeAssistant, entry: SchneiderUPSNMC3ConfigEntry
+    hass: HomeAssistant, entry: SchneiderUPSNMCConfigEntry
 ) -> bool:
-    """Unload a Schneider Electric UPS NMC3 config entry."""
+    """Unload an APC UPS NMC config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        coordinator: SchneiderUPSNMC3Coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator: SchneiderUPSNMCCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         coordinator.close()
 
     return unload_ok
 
 
 async def async_reload_entry(
-    hass: HomeAssistant, entry: SchneiderUPSNMC3ConfigEntry
+    hass: HomeAssistant, entry: SchneiderUPSNMCConfigEntry
 ) -> None:
-    """Reload a Schneider Electric UPS NMC3 config entry."""
+    """Reload an APC UPS NMC config entry."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
 
 
 async def _async_register_syslog(
     hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
-    coordinator: SchneiderUPSNMC3Coordinator,
+    entry: SchneiderUPSNMCConfigEntry,
+    coordinator: SchneiderUPSNMCCoordinator,
 ) -> None:
     """Register a config entry with the shared syslog listener."""
     if not bool(
@@ -85,7 +85,7 @@ async def _async_register_syslog(
             entry.data.get(CONF_SYSLOG_ENABLED, DEFAULT_SYSLOG_ENABLED),
         )
     ):
-        _LOGGER.debug("Schneider UPS NMC3 syslog listener disabled for %s", entry.title)
+        _LOGGER.debug("APC UPS NMC syslog listener disabled for %s", entry.title)
         _delete_syslog_issues(hass, entry)
         return
 
@@ -105,7 +105,7 @@ async def _async_register_syslog(
     if not manager.is_configured_for(bind_address, port):
         _LOGGER.warning(
             (
-                "Could not register Schneider UPS NMC3 syslog listener for %s "
+                "Could not register APC UPS NMC syslog listener for %s "
                 "on %s:%s because the shared listener is already using %s:%s"
             ),
             entry.title,
@@ -126,7 +126,7 @@ async def _async_register_syslog(
         unregister = await manager.async_register(coordinator)
     except OSError as err:
         _LOGGER.warning(
-            "Could not start Schneider UPS NMC3 syslog listener on %s:%s: %s",
+            "Could not start APC UPS NMC syslog listener on %s:%s: %s",
             manager.bind_address,
             manager.port,
             err,
@@ -167,7 +167,7 @@ def _syslog_manager(
 
 def _create_syslog_listener_conflict_issue(
     hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
     *,
     requested: str,
     active: str,
@@ -192,7 +192,7 @@ def _create_syslog_listener_conflict_issue(
 
 def _create_syslog_listener_failed_issue(
     hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
     *,
     address: str,
     error: str,
@@ -217,7 +217,7 @@ def _create_syslog_listener_failed_issue(
 
 def _delete_syslog_issues(
     hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
 ) -> None:
     """Delete stale syslog listener repair issues for a config entry."""
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_CONFLICT_ISSUE)
@@ -226,7 +226,7 @@ def _delete_syslog_issues(
 
 def _delete_syslog_issue(
     hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
     issue: str,
 ) -> None:
     """Delete one syslog listener repair issue for a config entry."""
@@ -234,7 +234,7 @@ def _delete_syslog_issue(
 
 
 def _syslog_issue_id(
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
     issue: str,
 ) -> str:
     """Return the per-entry syslog listener repair issue ID."""
