@@ -13,14 +13,21 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 import custom_components.schneider_ups_nmc3.config_flow as config_flow_module
 from custom_components.schneider_ups_nmc3.const import (
+    CONF_AUTH_KEY,
+    CONF_AUTH_PROTOCOL,
     CONF_COMMUNITY,
+    CONF_PRIVACY_KEY,
+    CONF_PRIVACY_PROTOCOL,
     CONF_SNMP_VERSION,
     CONF_SYSLOG_BIND_ADDRESS,
     CONF_SYSLOG_ENABLED,
     CONF_SYSLOG_PORT,
+    CONF_USERNAME,
     DOMAIN,
 )
 from custom_components.schneider_ups_nmc3.snmp import (
+    AUTH_PROTOCOL_SHA,
+    PRIVACY_PROTOCOL_AES,
     SNMP_VERSION_2C,
     SNMPConnectionConfig,
     SNMPError,
@@ -156,7 +163,7 @@ async def test_reconfigure_flow_updates_entry_and_schedules_reload(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Update SNMP settings for the same UPS through a reconfigure flow."""
+    """Update SNMP settings while preserving unrelated entry data."""
     _FakeConfigFlowSNMPClient.instances.clear()
     monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
     reload_mock = Mock()
@@ -171,6 +178,14 @@ async def test_reconfigure_flow_updates_entry_and_schedules_reload(
             CONF_SCAN_INTERVAL: 60,
             CONF_SNMP_VERSION: SNMP_VERSION_2C,
             CONF_COMMUNITY: "public",
+            CONF_USERNAME: "old-user",
+            CONF_AUTH_PROTOCOL: AUTH_PROTOCOL_SHA,
+            CONF_AUTH_KEY: "old-auth",
+            CONF_PRIVACY_PROTOCOL: PRIVACY_PROTOCOL_AES,
+            CONF_PRIVACY_KEY: "old-privacy",
+            CONF_SYSLOG_ENABLED: True,
+            CONF_SYSLOG_BIND_ADDRESS: "0.0.0.0",
+            CONF_SYSLOG_PORT: 1514,
         },
     )
     entry.add_to_hass(hass)
@@ -212,6 +227,9 @@ async def test_reconfigure_flow_updates_entry_and_schedules_reload(
         CONF_SCAN_INTERVAL: 90,
         CONF_SNMP_VERSION: SNMP_VERSION_2C,
         CONF_COMMUNITY: "private",
+        CONF_SYSLOG_ENABLED: True,
+        CONF_SYSLOG_BIND_ADDRESS: "0.0.0.0",
+        CONF_SYSLOG_PORT: 1514,
     }
     assert _FakeConfigFlowSNMPClient.instances[0].config == SNMPConnectionConfig(
         host="192.0.2.20",

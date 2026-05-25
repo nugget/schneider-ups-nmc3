@@ -84,6 +84,18 @@ CONFIGURATION_ERROR_MESSAGES = {
         CONF_AUTH_PROTOCOL: "privacy_requires_auth"
     },
 }
+RECONFIGURE_REPLACED_DATA_KEYS = {
+    CONF_AUTH_KEY,
+    CONF_AUTH_PROTOCOL,
+    CONF_COMMUNITY,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_PRIVACY_KEY,
+    CONF_PRIVACY_PROTOCOL,
+    CONF_SCAN_INTERVAL,
+    CONF_SNMP_VERSION,
+    CONF_USERNAME,
+}
 
 
 class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
@@ -212,10 +224,11 @@ class SchneiderUPSNMC3ConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         title = data.get("_title", data[CONF_HOST])
         entry_data = _entry_data(data)
         if self.source == config_entries.SOURCE_RECONFIGURE:
+            entry = self._get_reconfigure_entry()
             return self.async_update_reload_and_abort(
-                self._get_reconfigure_entry(),
+                entry,
                 title=title,
-                data=entry_data,
+                data=_reconfigured_entry_data(entry.data, entry_data),
             )
 
         return self.async_create_entry(title=title, data=entry_data)
@@ -392,6 +405,19 @@ def _optional(key: str, defaults: Mapping[str, Any]) -> Any:
 def _entry_data(data: Mapping[str, Any]) -> dict[str, Any]:
     """Return config entry data without flow-private values."""
     return {key: value for key, value in data.items() if key != "_title"}
+
+
+def _reconfigured_entry_data(
+    existing_data: Mapping[str, Any],
+    updated_data: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Merge reconfigured flow data while preserving unrelated entry data."""
+    preserved_data = {
+        key: value
+        for key, value in existing_data.items()
+        if key not in RECONFIGURE_REPLACED_DATA_KEYS and key != "_title"
+    }
+    return preserved_data | dict(updated_data)
 
 
 def _config_from_data(data: dict[str, Any]) -> SNMPConnectionConfig:
