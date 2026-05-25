@@ -53,6 +53,16 @@
       }
     }
   },
+  "issues": {
+    "syslog_listener_conflict": {
+      "title": "Syslog listener settings conflict",
+      "description": "The syslog listener for {name} could not start on {requested} because another Schneider Electric UPS NMC3 entry is already using {active}. Use the same syslog listener settings for all syslog-enabled UPS entries, or disable syslog for this entry."
+    },
+    "syslog_listener_failed": {
+      "title": "Syslog listener could not start",
+      "description": "The syslog listener for {name} could not start on {address}: {error}. Change the bind address or UDP port, free the port, or disable syslog for this entry."
+    }
+  },
   "entity": {
     "binary_sensor": {
       "alarm_present": {

@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     CONF_SYSLOG_BIND_ADDRESS,
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+SYSLOG_LISTENER_CONFLICT_ISSUE = "syslog_listener_conflict"
+SYSLOG_LISTENER_FAILED_ISSUE = "syslog_listener_failed"
 
 type SchneiderUPSNMC3ConfigEntry = ConfigEntry[SchneiderUPSNMC3Coordinator]
 
@@ -83,6 +86,7 @@ async def _async_register_syslog(
         )
     ):
         _LOGGER.debug("Schneider UPS NMC3 syslog listener disabled for %s", entry.title)
+        _delete_syslog_issues(hass, entry)
         return
 
     bind_address = str(
@@ -110,6 +114,12 @@ async def _async_register_syslog(
             manager.bind_address,
             manager.port,
         )
+        _create_syslog_listener_conflict_issue(
+            hass,
+            entry,
+            requested=f"{bind_address}:{port}",
+            active=f"{manager.bind_address}:{manager.port}",
+        )
         return
 
     try:
@@ -121,8 +131,15 @@ async def _async_register_syslog(
             manager.port,
             err,
         )
+        _create_syslog_listener_failed_issue(
+            hass,
+            entry,
+            address=f"{manager.bind_address}:{manager.port}",
+            error=str(err),
+        )
         return
 
+    _delete_syslog_issues(hass, entry)
     entry.async_on_unload(unregister)
 
 
@@ -146,3 +163,79 @@ def _syslog_manager(
     domain_data[SYSLOG_MANAGER] = manager
 
     return manager
+
+
+def _create_syslog_listener_conflict_issue(
+    hass: HomeAssistant,
+    entry: SchneiderUPSNMC3ConfigEntry,
+    *,
+    requested: str,
+    active: str,
+) -> None:
+    """Create a repair issue for conflicting shared syslog listener options."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _syslog_issue_id(entry, SYSLOG_LISTENER_CONFLICT_ISSUE),
+        is_fixable=False,
+        issue_domain=DOMAIN,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=SYSLOG_LISTENER_CONFLICT_ISSUE,
+        translation_placeholders={
+            "active": active,
+            "name": entry.title,
+            "requested": requested,
+        },
+    )
+    _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_FAILED_ISSUE)
+
+
+def _create_syslog_listener_failed_issue(
+    hass: HomeAssistant,
+    entry: SchneiderUPSNMC3ConfigEntry,
+    *,
+    address: str,
+    error: str,
+) -> None:
+    """Create a repair issue for syslog listener startup failures."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _syslog_issue_id(entry, SYSLOG_LISTENER_FAILED_ISSUE),
+        is_fixable=False,
+        issue_domain=DOMAIN,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=SYSLOG_LISTENER_FAILED_ISSUE,
+        translation_placeholders={
+            "address": address,
+            "error": error,
+            "name": entry.title,
+        },
+    )
+    _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_CONFLICT_ISSUE)
+
+
+def _delete_syslog_issues(
+    hass: HomeAssistant,
+    entry: SchneiderUPSNMC3ConfigEntry,
+) -> None:
+    """Delete stale syslog listener repair issues for a config entry."""
+    _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_CONFLICT_ISSUE)
+    _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_FAILED_ISSUE)
+
+
+def _delete_syslog_issue(
+    hass: HomeAssistant,
+    entry: SchneiderUPSNMC3ConfigEntry,
+    issue: str,
+) -> None:
+    """Delete one syslog listener repair issue for a config entry."""
+    ir.async_delete_issue(hass, DOMAIN, _syslog_issue_id(entry, issue))
+
+
+def _syslog_issue_id(
+    entry: SchneiderUPSNMC3ConfigEntry,
+    issue: str,
+) -> str:
+    """Return the per-entry syslog listener repair issue ID."""
+    return f"{issue}_{entry.entry_id}"
