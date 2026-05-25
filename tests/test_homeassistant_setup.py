@@ -12,12 +12,14 @@ from homeassistant.const import (
     CONF_SCAN_INTERVAL,
     STATE_UNAVAILABLE,
 )
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 import custom_components.schneider_ups_nmc3 as integration
 import custom_components.schneider_ups_nmc3.coordinator as coordinator_module
+import custom_components.schneider_ups_nmc3.entity as entity_module
 from custom_components.schneider_ups_nmc3.const import (
     CONF_COMMUNITY,
     CONF_SNMP_VERSION,
@@ -40,6 +42,13 @@ if TYPE_CHECKING:
 ENTRY_ID = "01HZZZZZZZZZZZZZZZZZZZZZZZ"
 ENTRY_UNIQUE_ID = "ups-test-device"
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
+
+
+def test_configuration_url_formats_ip_hosts() -> None:
+    """Format NMC web configuration URLs for IP hosts."""
+    assert entity_module._configuration_url("192.0.2.10") == "http://192.0.2.10"
+    assert entity_module._configuration_url("2001:db8::1") == "http://[2001:db8::1]"
+    assert entity_module._configuration_url("fe80::1%eth0") == "http://[fe80::1%25eth0]"
 
 
 async def test_config_entry_sets_up_entities_and_unloads(
@@ -67,6 +76,19 @@ async def test_config_entry_sets_up_entities_and_unloads(
     state = hass.states.get(entity_id)
     assert state is not None
     assert state.state == "97"
+
+    device = dr.async_get(hass).async_get_device(
+        identifiers={(DOMAIN, ENTRY_UNIQUE_ID)}
+    )
+    assert device is not None
+    assert device.configuration_url == "http://192.0.2.10"
+    assert device.connections == {
+        (dr.CONNECTION_NETWORK_MAC, "00:c0:b7:12:34:56"),
+    }
+    assert device.manufacturer == "Schneider Electric"
+    assert device.model == "Smart-UPS 1500"
+    assert device.serial_number == "AS1234567890"
+    assert device.sw_version == "UPS 15.0 / NMC 3.2.1"
 
     missing_entity_id = er.async_get(hass).async_get_entity_id(
         "sensor",
