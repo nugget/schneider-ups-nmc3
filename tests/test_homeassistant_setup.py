@@ -6,7 +6,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PORT,
+    CONF_SCAN_INTERVAL,
+    STATE_UNAVAILABLE,
+)
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -63,11 +68,50 @@ async def test_config_entry_sets_up_entities_and_unloads(
     assert state is not None
     assert state.state == "97"
 
+    missing_entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor",
+        DOMAIN,
+        f"{ENTRY_UNIQUE_ID}_battery_temperature",
+    )
+    assert missing_entity_id is not None
+    missing_state = hass.states.get(missing_entity_id)
+    assert missing_state is not None
+    assert missing_state.state == STATE_UNAVAILABLE
+
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.NOT_LOADED
     assert _FakeSNMPClient.instances[0].closed
+
+
+async def test_config_entry_marks_missing_binary_value_unavailable(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mark binary sensors unavailable when their source value is absent."""
+    _SparseSNMPClient.instances.clear()
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _SparseSNMPClient)
+
+    entry = _mock_entry(options={CONF_SYSLOG_ENABLED: False})
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "binary_sensor",
+        DOMAIN,
+        f"{ENTRY_UNIQUE_ID}_battery_low",
+    )
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _SparseSNMPClient.instances[0].closed
 
 
 async def test_syslog_register_failure_creates_and_clears_repair_issue(
@@ -232,6 +276,28 @@ class _FakeSNMPClient:
     def close(self) -> None:
         """Close the fake SNMP client."""
         self.closed = True
+
+
+class _SparseSNMPClient(_FakeSNMPClient):
+    """SNMP client fake that omits optional values."""
+
+    instances: ClassVar[list[_SparseSNMPClient]] = []
+
+    async def async_get_data(self) -> UPSData:
+        """Return UPS data without battery status details."""
+        return UPSData(
+            values={
+                "battery_charge": 97,
+            },
+            name="Rack UPS",
+            manufacturer="Schneider Electric",
+            model="Smart-UPS 1500",
+            serial_number="AS1234567890",
+            firmware_version="UPS 15.0 / NMC 3.2.1",
+            agent_version="NMC 3.2.1",
+            mac_address="00:c0:b7:12:34:56",
+            unique_id=ENTRY_UNIQUE_ID,
+        )
 
 
 class _FailingSyslogManager:

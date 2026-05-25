@@ -314,6 +314,15 @@ class SchneiderUPSNMC3SensorEntity(SchneiderUPSNMC3Entity, SensorEntity):
     entity_description: SchneiderUPSNMC3SensorEntityDescription
 
     @property
+    def available(self) -> bool:
+        """Return whether the sensor has a fresh value."""
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.entity_description.value_fn(self.coordinator.data) is not None
+        )
+
+    @property
     def native_value(self) -> Any:
         """Return the sensor state."""
         if self.coordinator.data is None:
