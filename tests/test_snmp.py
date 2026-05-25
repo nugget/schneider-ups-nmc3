@@ -138,7 +138,14 @@ class BuildUPSDataTest(unittest.TestCase):
 
         values = asyncio.run(client.async_get(oids))
 
-        self.assertEqual([len(batch) for batch in client.batches], [12, 12, 1])
+        expected_batch_sizes = [
+            len(oids[index : index + snmp.GET_BATCH_SIZE])
+            for index in range(0, len(oids), snmp.GET_BATCH_SIZE)
+        ]
+        self.assertEqual(
+            [len(batch) for batch in client.batches],
+            expected_batch_sizes,
+        )
         self.assertEqual(values[oids[0]], f"value-{oids[0]}")
         self.assertEqual(values[oids[-1]], f"value-{oids[-1]}")
 
