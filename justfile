@@ -1,18 +1,20 @@
 default: ci
 
-release tag:
-    just release-prepare {{tag}}
-    just release-publish {{tag}}
+release version:
+    just release-prepare {{version}}
+    SKIP_RELEASE_CI=1 just release-publish {{version}}
 
-release-prepare tag:
+release-prepare version:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    tag='{{tag}}'
+    requested_version='{{version}}'
+    manifest_version="${requested_version#v}"
+    tag="v$manifest_version"
     manifest='custom_components/schneider_ups_nmc3/manifest.json'
 
-    if [[ ! "$tag" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
-      echo "release tag must look like v0.1.0 or v0.1.0-rc.1" >&2
+    if [[ ! "$manifest_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+      echo "release version must look like 0.1.0, v0.1.0, 0.1.0-rc.1, or v0.1.0-rc.1" >&2
       exit 2
     fi
 
@@ -31,15 +33,15 @@ release-prepare tag:
       exit 1
     fi
 
-    python - "$tag" "$manifest" <<'PY'
+    uv run python - "$manifest_version" "$manifest" <<'PY'
     import json
     import pathlib
     import sys
 
-    tag = sys.argv[1]
+    manifest_version = sys.argv[1]
     manifest = pathlib.Path(sys.argv[2])
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    data["version"] = tag
+    data["version"] = manifest_version
     manifest.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -50,19 +52,21 @@ release-prepare tag:
     git add "$manifest"
     git commit -m "chore: release $tag"
 
-release-publish tag:
+release-publish version:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    tag='{{tag}}'
+    requested_version='{{version}}'
+    manifest_version="${requested_version#v}"
+    tag="v$manifest_version"
     manifest='custom_components/schneider_ups_nmc3/manifest.json'
 
-    if [[ ! "$tag" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
-      echo "release tag must look like v0.1.0 or v0.1.0-rc.1" >&2
+    if [[ ! "$manifest_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+      echo "release version must look like 0.1.0, v0.1.0, 0.1.0-rc.1, or v0.1.0-rc.1" >&2
       exit 2
     fi
 
-    manifest_version="$(python - "$manifest" <<'PY'
+    current_manifest_version="$(uv run python - "$manifest" <<'PY'
     import json
     import pathlib
     import sys
@@ -72,8 +76,8 @@ release-publish tag:
     PY
     )"
 
-    if [[ "$manifest_version" != "$tag" ]]; then
-      echo "manifest version is $manifest_version, expected $tag" >&2
+    if [[ "$current_manifest_version" != "$manifest_version" ]]; then
+      echo "manifest version is $current_manifest_version, expected $manifest_version" >&2
       exit 1
     fi
 
@@ -97,11 +101,18 @@ release-publish tag:
       exit 1
     fi
 
-    just ci
+    if [[ "${SKIP_RELEASE_CI:-0}" != "1" ]]; then
+      just ci
+    fi
+
     git tag -s "$tag" -m "$tag"
     git push origin HEAD
     git push origin "$tag"
-    gh release create "$tag" --verify-tag --title "$tag" --generate-notes --latest
+    if [[ "$manifest_version" == *-* ]]; then
+      gh release create "$tag" --verify-tag --title "$tag" --generate-notes --prerelease
+    else
+      gh release create "$tag" --verify-tag --title "$tag" --generate-notes --latest
+    fi
 
 lock:
     uv lock
