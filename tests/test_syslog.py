@@ -42,6 +42,22 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertEqual(event.event_category, "System TEST")
         self.assertEqual(event.event_text, "APC: Test Syslog.")
 
+    def test_defines_event_types_from_syslog_severities(self) -> None:
+        """Expose syslog severities as Home Assistant event types."""
+        self.assertEqual(
+            syslog.SYSLOG_EVENT_TYPES,
+            (
+                "emergency",
+                "alert",
+                "critical",
+                "error",
+                "warning",
+                "notice",
+                "informational",
+                "debug",
+            ),
+        )
+
     def test_routes_datagram_by_packet_source_host(self) -> None:
         """Route parsed events to the coordinator registered for source IP."""
         coordinator = _FakeCoordinator(host="192.0.2.10")
@@ -59,6 +75,52 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertIs(dispatch.coordinator, coordinator)
         self.assertEqual(dispatch.event.source_host, "192.0.2.10")
         self.assertEqual(dispatch.event.event.event_category, "System TEST")
+
+    def test_builds_home_assistant_event_state_data(self) -> None:
+        """Build stable Home Assistant state data for a routed syslog event."""
+        routed_event = syslog.RoutedSyslogEvent(
+            source_host="192.0.2.10",
+            source_port=514,
+            event=syslog.parse_syslog_message(
+                "<8>1 2026-05-25T01:20:40-05:00 "
+                "ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog."
+            ),
+        )
+
+        self.assertEqual(
+            syslog.syslog_event_state_data(routed_event),
+            {
+                "source_host": "192.0.2.10",
+                "source_port": 514,
+                "priority": 8,
+                "facility": "user",
+                "severity": "emergency",
+                "hostname": "ups.example.test",
+                "app_name": "su_v2.5.5.1",
+                "proc_id": "System",
+                "msg_id": "TEST",
+                "timestamp": "2026-05-25T01:20:40-05:00",
+                "message": "APC: Test Syslog.",
+                "category": "System TEST",
+            },
+        )
+
+    def test_event_state_data_omits_empty_optional_fields(self) -> None:
+        """Omit absent category and empty structured data from event state data."""
+        routed_event = syslog.RoutedSyslogEvent(
+            source_host="192.0.2.10",
+            source_port=514,
+            event=syslog.parse_syslog_message(
+                "<14>1 2026-05-25T01:20:40-05:00 "
+                "ups.example.test su_v2.5.5.1 - - - APC: No category."
+            ),
+        )
+
+        state_data = syslog.syslog_event_state_data(routed_event)
+
+        self.assertNotIn("category", state_data)
+        self.assertNotIn("structured_data", state_data)
+        self.assertEqual(state_data["severity"], "informational")
 
     def test_ignores_unknown_source_host_without_parsing(self) -> None:
         """Ignore unregistered source hosts before parsing the datagram."""

@@ -39,6 +39,9 @@ the NMC access control list to your Home Assistant host.
 - Active alarm count.
 - Binary sensors for on battery, battery low, battery needs replacing, and alarm
   present.
+- A syslog event entity whose event type is the pushed syslog severity and whose
+  event data includes the NMC message, category, facility, timestamp, and packet
+  source.
 
 ## Notes
 
@@ -55,5 +58,5 @@ future integrations that identify the same network card by MAC address.
 The integration opens a shared UDP syslog listener on port `1514`. Configure
 one or more NMC3 cards to send syslog events to the Home Assistant host on that
 port. Events are routed to configured UPS entries by packet source IP and used
-to request an immediate SNMP refresh while SNMP polling remains the source of
-truth for telemetry.
+to fire the entry's syslog event entity and request an immediate SNMP refresh
+while SNMP polling remains the source of truth for telemetry.

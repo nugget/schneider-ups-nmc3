@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
+from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -33,6 +34,8 @@ from .snmp import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
@@ -54,6 +57,7 @@ class SchneiderUPSNMC3Coordinator(DataUpdateCoordinator[UPSData]):
         )
         self.host = entry.data[CONF_HOST]
         self.last_syslog_event: RoutedSyslogEvent | None = None
+        self._syslog_listeners: set[Callable[[RoutedSyslogEvent], None]] = set()
 
         scan_interval = entry.options.get(
             CONF_SCAN_INTERVAL,
@@ -80,7 +84,29 @@ class SchneiderUPSNMC3Coordinator(DataUpdateCoordinator[UPSData]):
     async def async_handle_syslog_event(self, event: RoutedSyslogEvent) -> None:
         """Handle a pushed syslog event from the NMC."""
         self.last_syslog_event = event
+        for listener in tuple(self._syslog_listeners):
+            try:
+                listener(event)
+            except Exception:
+                _LOGGER.debug(
+                    "Failed to notify Schneider UPS NMC3 syslog listener",
+                    exc_info=True,
+                )
         await self.async_request_refresh()
+
+    @callback
+    def async_add_syslog_listener(
+        self,
+        listener: Callable[[RoutedSyslogEvent], None],
+    ) -> Callable[[], None]:
+        """Add a listener for pushed syslog events."""
+        self._syslog_listeners.add(listener)
+
+        def remove_listener() -> None:
+            """Remove a pushed syslog event listener."""
+            self._syslog_listeners.discard(listener)
+
+        return remove_listener
 
     def close(self) -> None:
         """Close the SNMP client."""
