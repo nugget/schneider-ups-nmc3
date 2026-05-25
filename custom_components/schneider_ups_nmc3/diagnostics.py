@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+    from .syslog import RoutedSyslogEvent
+
 TO_REDACT = {
     CONF_AUTH_KEY,
     CONF_COMMUNITY,
@@ -47,5 +49,25 @@ async def async_get_config_entry_diagnostics(
             "agent_version": data.agent_version if data else None,
             "mac_address": data.mac_address if data else None,
         },
+        "last_syslog_event": _routed_syslog_event(coordinator.last_syslog_event),
         "available_keys": sorted(data.values.keys()) if data else [],
+    }
+
+
+def _routed_syslog_event(event: RoutedSyslogEvent | None) -> dict[str, Any] | None:
+    """Return diagnostic data for the last routed syslog event."""
+    if event is None:
+        return None
+
+    syslog_event = event.event
+    return {
+        "source_host": event.source_host,
+        "source_port": event.source_port,
+        "facility": syslog_event.facility,
+        "severity": syslog_event.severity,
+        "hostname": syslog_event.hostname,
+        "app_name": syslog_event.app_name,
+        "event_category": syslog_event.event_category,
+        "event_text": syslog_event.event_text,
+        "timestamp": syslog_event.timestamp.isoformat(),
     }

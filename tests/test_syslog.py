@@ -42,6 +42,59 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertEqual(event.event_category, "System TEST")
         self.assertEqual(event.event_text, "APC: Test Syslog.")
 
+    def test_routes_datagram_by_packet_source_host(self) -> None:
+        """Route parsed events to the coordinator registered for source IP."""
+        coordinator = _FakeCoordinator(host="192.0.2.10")
+
+        dispatch = syslog.route_syslog_datagram(
+            b"<8>1 2026-05-25T01:20:40-05:00 "
+            b"ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog.",
+            source_host="192.0.2.10",
+            source_port=514,
+            coordinators_by_host={coordinator.host: coordinator},
+        )
+
+        self.assertIsNotNone(dispatch)
+        assert dispatch is not None
+        self.assertIs(dispatch.coordinator, coordinator)
+        self.assertEqual(dispatch.event.source_host, "192.0.2.10")
+        self.assertEqual(dispatch.event.event.event_category, "System TEST")
+
+    def test_ignores_unknown_source_host_without_parsing(self) -> None:
+        """Ignore unregistered source hosts before parsing the datagram."""
+        dispatch = syslog.route_syslog_datagram(
+            b"not syslog",
+            source_host="192.0.2.99",
+            source_port=514,
+            coordinators_by_host={"192.0.2.10": _FakeCoordinator("192.0.2.10")},
+        )
+
+        self.assertIsNone(dispatch)
+
+    def test_rejects_malformed_datagram_from_known_source_host(self) -> None:
+        """Raise parse errors for configured hosts with malformed messages."""
+        with self.assertRaises(syslog.SyslogParseError):
+            syslog.route_syslog_datagram(
+                b"not syslog",
+                source_host="192.0.2.10",
+                source_port=514,
+                coordinators_by_host={"192.0.2.10": _FakeCoordinator("192.0.2.10")},
+            )
+
+
+class _FakeCoordinator:
+    """Minimal coordinator for syslog routing tests."""
+
+    def __init__(self, host: str) -> None:
+        """Initialize the fake coordinator."""
+        self.host = host
+
+    async def async_handle_syslog_event(
+        self,
+        event: object,
+    ) -> None:
+        """Handle a routed syslog event."""
+
 
 if __name__ == "__main__":
     unittest.main()
