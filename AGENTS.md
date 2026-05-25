@@ -32,6 +32,12 @@ just json          # Validate JSON manifests/translations/HACS metadata
 just yaml          # Validate GitHub Actions YAML
 just lock          # Update uv.lock
 just lock-check    # Verify uv.lock is current
+just release v0.1.0
+                   # Update manifest version, commit it, tag, push, and create the GitHub Release
+just release-prepare v0.1.0
+                   # Update manifest version and commit the release bump
+just release-publish v0.1.0
+                   # Tag, push, and create the GitHub Release from the current commit
 ```
 
 `just ci` must pass locally before every push. Do not rely on GitHub Actions to
@@ -170,6 +176,10 @@ incomplete.
   `v0.1.0-rc.1`.
 - Prefer GitHub releases for user-facing HACS installs and upgrades once the
   integration is ready for users.
+- `just release <tag>` is the canonical release path. It writes the supplied tag
+  value into `manifest.json`, runs the full local gate, commits the release
+  bump, creates a signed tag, pushes the commit and tag, and creates a GitHub
+  Release so HACS can see it as a release rather than only as a branch state.
 - Do not hardcode release-only behavior in integration source; keep version and
   packaging metadata in manifest/release automation.
 
