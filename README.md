@@ -4,7 +4,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/nugget/schneider-ups-nmc/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/nugget/schneider-ups-nmc/actions/workflows/ci.yml)
 [![Manifest version](https://img.shields.io/badge/dynamic/json?style=flat-square&label=manifest&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fnugget%2Fschneider-ups-nmc%2Fmain%2Fcustom_components%2Fschneider_ups_nmc%2Fmanifest.json)](https://github.com/nugget/schneider-ups-nmc/blob/main/custom_components/schneider_ups_nmc/manifest.json)
 [![Release](https://img.shields.io/github/v/release/nugget/schneider-ups-nmc?style=flat-square&label=release)](https://github.com/nugget/schneider-ups-nmc/releases)
-[![License](https://img.shields.io/github/license/nugget/schneider-ups-nmc?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/github/license/nugget/schneider-ups-nmc?style=flat-square)](https://github.com/nugget/schneider-ups-nmc/blob/main/LICENSE)
 
 Home Assistant custom integration for APC by Schneider Electric UPS units with
 network management cards.
