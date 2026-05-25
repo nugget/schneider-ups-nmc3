@@ -488,12 +488,12 @@ class SNMPClient:
                 f"Unsupported SNMPv3 privacy protocol: {self.config.privacy_protocol}"
             )
         if self.config.auth_protocol != AUTH_PROTOCOL_NONE and not self.config.auth_key:
-            raise SNMPConfigurationError("SNMPv3 authentication key is required")
+            raise SNMPConfigurationError("SNMPv3 authentication passphrase is required")
         if (
             self.config.privacy_protocol != PRIVACY_PROTOCOL_NONE
             and not self.config.privacy_key
         ):
-            raise SNMPConfigurationError("SNMPv3 privacy key is required")
+            raise SNMPConfigurationError("SNMPv3 privacy passphrase is required")
         if (
             self.config.privacy_protocol != PRIVACY_PROTOCOL_NONE
             and self.config.auth_protocol == AUTH_PROTOCOL_NONE
