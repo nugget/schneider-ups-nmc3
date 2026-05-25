@@ -1,4 +1,4 @@
-"""Syslog parsing for Schneider Electric UPS NMC3."""
+"""Syslog parsing for APC UPS NMC."""
 
 from __future__ import annotations
 

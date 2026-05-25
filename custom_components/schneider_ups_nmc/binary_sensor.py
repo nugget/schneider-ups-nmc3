@@ -1,4 +1,4 @@
-"""Binary sensors for Schneider Electric UPS NMC3."""
+"""Binary sensors for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 
-from .entity import SchneiderUPSNMC3Entity
+from .entity import SchneiderUPSNMCEntity
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -19,14 +19,14 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from . import SchneiderUPSNMC3ConfigEntry
-    from .coordinator import SchneiderUPSNMC3Coordinator
+    from . import SchneiderUPSNMCConfigEntry
+    from .coordinator import SchneiderUPSNMCCoordinator
     from .snmp import UPSData
 
 
 @dataclass(frozen=True, kw_only=True)
-class SchneiderUPSNMC3BinarySensorEntityDescription(BinarySensorEntityDescription):
-    """Describe a Schneider Electric UPS NMC3 binary sensor."""
+class SchneiderUPSNMCBinarySensorEntityDescription(BinarySensorEntityDescription):
+    """Describe an APC UPS NMC binary sensor."""
 
     value_fn: Callable[[UPSData], bool | None]
 
@@ -74,27 +74,25 @@ def _battery_needs_replacing(data: UPSData) -> bool | None:
     return battery_replace_indicator == "needs_replacement"
 
 
-BINARY_SENSOR_DESCRIPTIONS: tuple[
-    SchneiderUPSNMC3BinarySensorEntityDescription, ...
-] = (
-    SchneiderUPSNMC3BinarySensorEntityDescription(
+BINARY_SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMCBinarySensorEntityDescription, ...] = (
+    SchneiderUPSNMCBinarySensorEntityDescription(
         key="on_battery",
         translation_key="on_battery",
         value_fn=_on_battery,
     ),
-    SchneiderUPSNMC3BinarySensorEntityDescription(
+    SchneiderUPSNMCBinarySensorEntityDescription(
         key="battery_low",
         translation_key="battery_low",
         device_class=BinarySensorDeviceClass.PROBLEM,
         value_fn=_battery_low,
     ),
-    SchneiderUPSNMC3BinarySensorEntityDescription(
+    SchneiderUPSNMCBinarySensorEntityDescription(
         key="battery_needs_replacing",
         translation_key="battery_needs_replacing",
         device_class=BinarySensorDeviceClass.PROBLEM,
         value_fn=_battery_needs_replacing,
     ),
-    SchneiderUPSNMC3BinarySensorEntityDescription(
+    SchneiderUPSNMCBinarySensorEntityDescription(
         key="alarm_present",
         translation_key="alarm_present",
         device_class=BinarySensorDeviceClass.PROBLEM,
@@ -105,21 +103,21 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[
 
 async def async_setup_entry(
     _hass: HomeAssistant,
-    entry: SchneiderUPSNMC3ConfigEntry,
+    entry: SchneiderUPSNMCConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Schneider Electric UPS NMC3 binary sensors."""
-    coordinator: SchneiderUPSNMC3Coordinator = entry.runtime_data
+    """Set up APC UPS NMC binary sensors."""
+    coordinator: SchneiderUPSNMCCoordinator = entry.runtime_data
     async_add_entities(
-        SchneiderUPSNMC3BinarySensorEntity(coordinator, description)
+        SchneiderUPSNMCBinarySensorEntity(coordinator, description)
         for description in BINARY_SENSOR_DESCRIPTIONS
     )
 
 
-class SchneiderUPSNMC3BinarySensorEntity(SchneiderUPSNMC3Entity, BinarySensorEntity):
-    """A Schneider Electric UPS NMC3 binary sensor."""
+class SchneiderUPSNMCBinarySensorEntity(SchneiderUPSNMCEntity, BinarySensorEntity):
+    """An APC UPS NMC binary sensor."""
 
-    entity_description: SchneiderUPSNMC3BinarySensorEntityDescription
+    entity_description: SchneiderUPSNMCBinarySensorEntityDescription
 
     @property
     def available(self) -> bool:

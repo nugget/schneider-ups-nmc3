@@ -1,10 +1,10 @@
-"""Constants for Schneider Electric UPS NMC3."""
+"""Constants for APC UPS NMC."""
 
 from __future__ import annotations
 
 from homeassistant.const import Platform
 
-DOMAIN = "schneider_ups_nmc3"
+DOMAIN = "schneider_ups_nmc"
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,

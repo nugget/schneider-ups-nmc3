@@ -1,9 +1,11 @@
 # AGENTS.md
 
-Schneider UPS NMC3 is a Home Assistant custom integration for Schneider
-Electric/APC UPS Network Management Card 3 devices. The release artifact is a
+APC UPS NMC is a Home Assistant custom integration for APC by Schneider Electric
+UPS Network Management Card devices. The first support target is NMC3 hardware,
+but the repository and Home Assistant domain intentionally leave room for other
+Schneider Electric/APC NMC generations. The release artifact is a
 HACS-installable repository containing one integration under
-`custom_components/schneider_ups_nmc3/`.
+`custom_components/schneider_ups_nmc/`.
 
 This repo should feel like a Home Assistant Core integration even while it is
 distributed through HACS. Aim for Home Assistant's Integration Quality Scale,
@@ -121,10 +123,10 @@ catch what could have been caught locally.
   devices, limitations, or troubleshooting changes, update user-facing docs in
   the same PR.
 
-## NMC3 Architecture Notes
+## NMC Architecture Notes
 
 - The integration code lives under
-  `custom_components/schneider_ups_nmc3/`.
+  `custom_components/schneider_ups_nmc/`.
 - `snmp.py` owns SNMP protocol interaction and value normalization. Keep
   Home Assistant entity code out of the protocol layer.
 - `coordinator.py` owns refresh cadence, data snapshots, and setup refresh
@@ -167,7 +169,7 @@ incomplete.
 
 - Keep exactly one integration under `custom_components/` for HACS.
 - All runtime files required by Home Assistant belong inside
-  `custom_components/schneider_ups_nmc3/`.
+  `custom_components/schneider_ups_nmc/`.
 - Keep `manifest.json`, `hacs.json`, `README.md`, translations, and brand assets
   aligned with each release.
 - `manifest.json` must include clear ownership, documentation, issue tracker,

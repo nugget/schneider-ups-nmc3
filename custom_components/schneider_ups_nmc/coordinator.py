@@ -1,4 +1,4 @@
-"""Data coordinator for Schneider Electric UPS NMC3."""
+"""Data coordinator for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -44,8 +44,8 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class SchneiderUPSNMC3Coordinator(DataUpdateCoordinator[UPSData]):
-    """Coordinate data updates for Schneider Electric UPS NMC3."""
+class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
+    """Coordinate data updates for APC UPS NMC."""
 
     config_entry: ConfigEntry
 
@@ -89,7 +89,7 @@ class SchneiderUPSNMC3Coordinator(DataUpdateCoordinator[UPSData]):
                 listener(event)
             except Exception:
                 _LOGGER.debug(
-                    "Failed to notify Schneider UPS NMC3 syslog listener",
+                    "Failed to notify APC UPS NMC syslog listener",
                     exc_info=True,
                 )
         await self.async_request_refresh()

@@ -1,4 +1,4 @@
-"""Tests for Schneider Electric UPS NMC3 syslog parsing."""
+"""Tests for APC UPS NMC syslog parsing."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from pathlib import Path
 SYSLOG_PATH = (
     Path(__file__).resolve().parents[1]
     / "custom_components"
-    / "schneider_ups_nmc3"
+    / "schneider_ups_nmc"
     / "syslog.py"
 )
-SYSLOG_SPEC = util.spec_from_file_location("schneider_ups_nmc3_syslog", SYSLOG_PATH)
+SYSLOG_SPEC = util.spec_from_file_location("schneider_ups_nmc_syslog", SYSLOG_PATH)
 assert SYSLOG_SPEC is not None
 syslog = util.module_from_spec(SYSLOG_SPEC)
 sys.modules[SYSLOG_SPEC.name] = syslog

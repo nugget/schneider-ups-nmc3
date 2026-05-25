@@ -1,4 +1,4 @@
-"""Base entities for Schneider Electric UPS NMC3."""
+"""Base entities for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -14,20 +14,20 @@ from homeassistant.helpers.device_registry import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .coordinator import SchneiderUPSNMC3Coordinator
+from .coordinator import SchneiderUPSNMCCoordinator
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import EntityDescription
 
 
-class SchneiderUPSNMC3Entity(CoordinatorEntity[SchneiderUPSNMC3Coordinator]):
-    """Base entity for Schneider Electric UPS NMC3."""
+class SchneiderUPSNMCEntity(CoordinatorEntity[SchneiderUPSNMCCoordinator]):
+    """Base entity for APC UPS NMC."""
 
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        coordinator: SchneiderUPSNMC3Coordinator,
+        coordinator: SchneiderUPSNMCCoordinator,
         description: EntityDescription,
     ) -> None:
         """Initialize the entity."""

@@ -1,4 +1,4 @@
-"""Diagnostics support for Schneider Electric UPS NMC3."""
+"""Diagnostics support for APC UPS NMC."""
 
 from __future__ import annotations
 

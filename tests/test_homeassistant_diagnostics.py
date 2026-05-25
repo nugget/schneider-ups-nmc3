@@ -1,4 +1,4 @@
-"""Home Assistant diagnostics tests for Schneider Electric UPS NMC3."""
+"""Home Assistant diagnostics tests for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.helpers.redact import REDACTED
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.schneider_ups_nmc3.const import (
+from custom_components.schneider_ups_nmc.const import (
     CONF_AUTH_KEY,
     CONF_COMMUNITY,
     CONF_PRIVACY_KEY,
@@ -19,11 +19,11 @@ from custom_components.schneider_ups_nmc3.const import (
     CONF_USERNAME,
     DOMAIN,
 )
-from custom_components.schneider_ups_nmc3.diagnostics import (
+from custom_components.schneider_ups_nmc.diagnostics import (
     async_get_config_entry_diagnostics,
 )
-from custom_components.schneider_ups_nmc3.snmp import SNMP_VERSION_3, UPSData
-from custom_components.schneider_ups_nmc3.syslog import RoutedSyslogEvent, SyslogEvent
+from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_3, UPSData
+from custom_components.schneider_ups_nmc.syslog import RoutedSyslogEvent, SyslogEvent
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant

@@ -1,4 +1,4 @@
-"""Home Assistant integration tests for Schneider Electric UPS NMC3."""
+"""Home Assistant integration tests for APC UPS NMC."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-import custom_components.schneider_ups_nmc3 as integration
-import custom_components.schneider_ups_nmc3.coordinator as coordinator_module
-import custom_components.schneider_ups_nmc3.entity as entity_module
-from custom_components.schneider_ups_nmc3.const import (
+import custom_components.schneider_ups_nmc as integration
+import custom_components.schneider_ups_nmc.coordinator as coordinator_module
+import custom_components.schneider_ups_nmc.entity as entity_module
+from custom_components.schneider_ups_nmc.const import (
     CONF_COMMUNITY,
     CONF_SNMP_VERSION,
     CONF_SYSLOG_BIND_ADDRESS,
@@ -28,15 +28,15 @@ from custom_components.schneider_ups_nmc3.const import (
     CONF_SYSLOG_PORT,
     DOMAIN,
 )
-from custom_components.schneider_ups_nmc3.snmp import SNMP_VERSION_2C, UPSData
+from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, UPSData
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from homeassistant.core import HomeAssistant
 
-    from custom_components.schneider_ups_nmc3.coordinator import (
-        SchneiderUPSNMC3Coordinator,
+    from custom_components.schneider_ups_nmc.coordinator import (
+        SchneiderUPSNMCCoordinator,
     )
 
 ENTRY_ID = "01HZZZZZZZZZZZZZZZZZZZZZZZ"
@@ -157,7 +157,7 @@ async def test_syslog_register_failure_creates_and_clears_repair_issue(
     await integration._async_register_syslog(
         hass,
         entry,
-        cast("SchneiderUPSNMC3Coordinator", object()),
+        cast("SchneiderUPSNMCCoordinator", object()),
     )
 
     registry = ir.async_get(hass)
@@ -176,7 +176,7 @@ async def test_syslog_register_failure_creates_and_clears_repair_issue(
     await integration._async_register_syslog(
         hass,
         disabled_entry,
-        cast("SchneiderUPSNMC3Coordinator", object()),
+        cast("SchneiderUPSNMCCoordinator", object()),
     )
 
     assert (
@@ -209,7 +209,7 @@ async def test_syslog_listener_conflict_creates_repair_issue(
     await integration._async_register_syslog(
         hass,
         entry,
-        cast("SchneiderUPSNMC3Coordinator", object()),
+        cast("SchneiderUPSNMCCoordinator", object()),
     )
 
     issue = ir.async_get(hass).async_get_issue(
