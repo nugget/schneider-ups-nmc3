@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import unittest
+import warnings
 from datetime import date
 from importlib import util
 from pathlib import Path
@@ -297,6 +298,47 @@ class BuildUPSDataTest(unittest.TestCase):
         var_bind = ("1.3.6.1.2.1.2.2.1.6.1", bytes.fromhex("00c0b7123456"))
 
         self.assertEqual(snmp._first_result_bind([[var_bind]]), var_bind)
+
+    def test_close_prefers_modern_transport_dispatcher(self) -> None:
+        """Closing SNMP clients does not touch deprecated dispatcher aliases."""
+
+        class FakeTransportDispatcher:
+            """Fake PySNMP transport dispatcher."""
+
+            def __init__(self) -> None:
+                """Initialize the fake dispatcher."""
+                self.closed = False
+
+            def close_dispatcher(self) -> None:
+                """Record dispatcher close calls."""
+                self.closed = True
+
+        class FakeSNMPEngine:
+            """Fake PySNMP engine with modern and deprecated dispatcher names."""
+
+            def __init__(self) -> None:
+                """Initialize the fake engine."""
+                self.transport_dispatcher = FakeTransportDispatcher()
+
+            @property
+            def transportDispatcher(self) -> FakeTransportDispatcher:  # noqa: N802
+                """Raise if the deprecated dispatcher alias is touched."""
+                warnings.warn(
+                    "transportDispatcher is deprecated",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                return self.transport_dispatcher
+
+        client = snmp.SNMPClient(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+        engine = FakeSNMPEngine()
+        client._snmp_engine = engine
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            client.close()
+
+        self.assertTrue(engine.transport_dispatcher.closed)
 
 
 if __name__ == "__main__":
