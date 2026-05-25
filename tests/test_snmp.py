@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import unittest
 from datetime import date
 from importlib import util
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 SNMP_PATH = (
     Path(__file__).resolve().parents[1]
@@ -111,6 +116,70 @@ class BuildUPSDataTest(unittest.TestCase):
 
         with self.assertRaises(snmp.SNMPConfigurationError):
             client._auth_data()
+
+    def test_async_get_batches_large_oid_sets(self) -> None:
+        """Large pull requests are split into bounded SNMP GET batches."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that records low-level batch requests."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.batches: list[tuple[str, ...]] = []
+
+            async def _async_get_batch(self, oids: Sequence[str]) -> dict[str, str]:
+                """Return values for one fake batch."""
+                self.batches.append(tuple(oids))
+                return {oid: f"value-{oid}" for oid in oids}
+
+        client = FakeSNMPClient()
+        oids = tuple(f"1.3.6.1.2.1.1.{index}.0" for index in range(25))
+
+        values = asyncio.run(client.async_get(oids))
+
+        expected_batch_sizes = [
+            len(oids[index : index + snmp.GET_BATCH_SIZE])
+            for index in range(0, len(oids), snmp.GET_BATCH_SIZE)
+        ]
+        self.assertEqual(
+            [len(batch) for batch in client.batches],
+            expected_batch_sizes,
+        )
+        self.assertEqual(values[oids[0]], f"value-{oids[0]}")
+        self.assertEqual(values[oids[-1]], f"value-{oids[-1]}")
+
+    def test_async_get_data_tolerates_mac_walk_failure(self) -> None:
+        """Main UPS pulls still succeed when optional IF-MIB discovery fails."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that returns identity data but no MAC address."""
+
+            async def async_get(self, oids: Sequence[str]) -> dict[str, str | None]:
+                """Return fake raw values for the requested OIDs."""
+                return {
+                    oid: (
+                        "rack-ups"
+                        if oid
+                        in {
+                            snmp.RFC1628_OIDS["sys_name"],
+                            snmp.RFC1628_OIDS["ups_name"],
+                        }
+                        else None
+                    )
+                    for oid in oids
+                }
+
+            async def async_get_mac_address(self) -> str | None:
+                """Raise an optional IF-MIB discovery error."""
+                raise snmp.SNMPError("IF-MIB unavailable")
+
+        client = FakeSNMPClient(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+
+        data = asyncio.run(client.async_get_data())
+
+        self.assertEqual(data.name, "rack-ups")
+        self.assertEqual(data.mac_address, None)
 
     def test_normalizes_powernet_values(self) -> None:
         """PowerNet values prefer high-precision NMC fields."""

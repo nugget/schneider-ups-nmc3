@@ -139,6 +139,7 @@ POWERNET_OIDS: dict[str, str] = {
 
 OIDS: dict[str, str] = {**RFC1628_OIDS, **POWERNET_OIDS}
 
+GET_BATCH_SIZE = 12
 IF_TYPE_OID = "1.3.6.1.2.1.2.2.1.3"
 IF_PHYS_ADDRESS_OID = "1.3.6.1.2.1.2.2.1.6"
 ETHERNET_CSMACD_IF_TYPE = 6
@@ -260,6 +261,14 @@ class SNMPClient:
 
     async def async_get(self, oids: Sequence[str]) -> dict[str, Any]:
         """Fetch OIDs from the configured SNMP agent."""
+        values: dict[str, Any] = {}
+        for oid_batch in _chunks(oids, GET_BATCH_SIZE):
+            values.update(await self._async_get_batch(oid_batch))
+
+        return values
+
+    async def _async_get_batch(self, oids: Sequence[str]) -> dict[str, Any]:
+        """Fetch one bounded batch of OIDs from the configured SNMP agent."""
         from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
             ContextData,
             ObjectIdentity,
@@ -301,6 +310,12 @@ class SNMPClient:
             raise SNMPError(f"{error_text} at {failed_oid}")
 
         values: dict[str, Any] = {}
+        if len(result_binds) != len(oids):
+            raise SNMPError(
+                f"SNMP response returned {len(result_binds)} values for "
+                f"{len(oids)} requested OIDs"
+            )
+
         for oid, result in zip(oids, result_binds, strict=True):
             values[oid] = _coerce_snmp_value(result[1])
 
@@ -628,6 +643,11 @@ def _first_result_bind(result_binds: Sequence[Any]) -> Any | None:
         return nested_result
 
     return None
+
+
+def _chunks(values: Sequence[str], size: int) -> list[Sequence[str]]:
+    """Split values into stable bounded chunks."""
+    return [values[index : index + size] for index in range(0, len(values), size)]
 
 
 def _looks_like_var_bind(value: Any) -> bool:
