@@ -173,6 +173,9 @@
       "output_power": {
         "name": "Output power"
       },
+      "output_power_factor": {
+        "name": "Output power factor"
+      },
       "output_source": {
         "name": "Output source"
       },

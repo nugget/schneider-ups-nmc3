@@ -579,6 +579,10 @@ def build_ups_data(
     values["output_apparent_power"] = _first_present(
         raw.get("powernet_output_apparent_power")
     )
+    values["output_power_factor"] = _power_factor(
+        values["output_power"],
+        values["output_apparent_power"],
+    )
     values["output_load"] = _first_present(
         _tenths(raw.get("powernet_output_load_tenths")),
         raw.get("output_load"),
@@ -629,6 +633,19 @@ def _coerce_snmp_value(value: Any) -> int | str | None:
         return int(value)
     except (TypeError, ValueError):
         return pretty
+
+
+def _power_factor(
+    active_power: Any,
+    apparent_power: Any,
+) -> float | None:
+    """Return output power factor as a percentage from watts and volt-amperes."""
+    active = _int(active_power)
+    apparent = _int(apparent_power)
+    if active is None or apparent is None or apparent <= 0:
+        return None
+
+    return round(max(0.0, min(100.0, active / apparent * 100)), 1)
 
 
 def _select_interface_mac_address(
