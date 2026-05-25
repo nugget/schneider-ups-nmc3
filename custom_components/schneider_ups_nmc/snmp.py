@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 import warnings
 from dataclasses import dataclass
@@ -237,6 +238,8 @@ class SNMPClient:
     def __init__(self, config: SNMPConnectionConfig) -> None:
         """Initialize the client."""
         self.config = config
+        self._closed = False
+        self._engine_lock: asyncio.Lock | None = None
         self._snmp_engine: Any | None = None
 
     async def async_get_data(self) -> UPSData:
@@ -283,7 +286,7 @@ class SNMPClient:
 
         try:
             error_indication, error_status, error_index, result_binds = await get_cmd(
-                self._engine(),
+                await self._async_engine(),
                 auth_data,
                 await UdpTransportTarget.create(
                     (self.config.host, self.config.port),
@@ -349,7 +352,7 @@ class SNMPClient:
                     error_index,
                     result_binds,
                 ) = await next_cmd(
-                    self._engine(),
+                    await self._async_engine(),
                     auth_data,
                     transport_target,
                     ContextData(),
@@ -388,53 +391,49 @@ class SNMPClient:
 
     def close(self) -> None:
         """Close the underlying SNMP dispatcher."""
-        if self._snmp_engine is None:
-            return
-
-        close_dispatcher = getattr(self._snmp_engine, "close_dispatcher", None)
-        if callable(close_dispatcher):
-            close_dispatcher()
-
-        transport_dispatcher = getattr(self._snmp_engine, "transport_dispatcher", None)
-        if transport_dispatcher is None:
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore",
-                    message="transportDispatcher is deprecated",
-                    category=DeprecationWarning,
-                )
-                transport_dispatcher = getattr(
-                    self._snmp_engine,
-                    "transportDispatcher",
-                    None,
-                )
-        if transport_dispatcher is not None:
-            close_dispatcher = getattr(
-                transport_dispatcher,
-                "close_dispatcher",
-                None,
-            )
-            if not callable(close_dispatcher):
-                close_dispatcher = getattr(
-                    transport_dispatcher,
-                    "closeDispatcher",
-                    None,
-                )
-            if callable(close_dispatcher):
-                close_dispatcher()
-
+        self._closed = True
+        snmp_engine = self._snmp_engine
         self._snmp_engine = None
 
-    def _engine(self) -> Any:
-        """Return a lazily-created SNMP engine."""
-        if self._snmp_engine is None:
-            from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
-                SnmpEngine,
-            )
+        if snmp_engine is None:
+            return
 
-            self._snmp_engine = SnmpEngine()
+        _close_snmp_engine(snmp_engine)
+
+    async def _async_engine(self) -> Any:
+        """Return a lazily-created SNMP engine."""
+        if self._snmp_engine is not None:
+            return self._snmp_engine
+
+        if self._closed:
+            raise SNMPError("SNMP client is closed")
+
+        if self._engine_lock is None:
+            self._engine_lock = asyncio.Lock()
+
+        async with self._engine_lock:
+            if self._snmp_engine is not None:
+                return self._snmp_engine
+
+            if self._closed:
+                raise SNMPError("SNMP client is closed")
+
+            snmp_engine = await asyncio.to_thread(self._create_snmp_engine)
+            if self._closed:
+                _close_snmp_engine(snmp_engine)
+                raise SNMPError("SNMP client is closed")
+
+            self._snmp_engine = snmp_engine
 
         return self._snmp_engine
+
+    def _create_snmp_engine(self) -> Any:
+        """Create the PySNMP engine outside the event loop."""
+        from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
+            SnmpEngine,
+        )
+
+        return SnmpEngine()
 
     def _auth_data(self) -> Any:
         """Build PySNMP authentication data."""
@@ -502,6 +501,41 @@ class SNMPClient:
             authProtocol=auth_protocol,
             privProtocol=privacy_protocol,
         )
+
+
+def _close_snmp_engine(snmp_engine: Any) -> None:
+    """Close a PySNMP engine dispatcher."""
+    close_dispatcher = getattr(snmp_engine, "close_dispatcher", None)
+    if callable(close_dispatcher):
+        close_dispatcher()
+
+    transport_dispatcher = getattr(snmp_engine, "transport_dispatcher", None)
+    if transport_dispatcher is None:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="transportDispatcher is deprecated",
+                category=DeprecationWarning,
+            )
+            transport_dispatcher = getattr(
+                snmp_engine,
+                "transportDispatcher",
+                None,
+            )
+    if transport_dispatcher is not None:
+        close_dispatcher = getattr(
+            transport_dispatcher,
+            "close_dispatcher",
+            None,
+        )
+        if not callable(close_dispatcher):
+            close_dispatcher = getattr(
+                transport_dispatcher,
+                "closeDispatcher",
+                None,
+            )
+        if callable(close_dispatcher):
+            close_dispatcher()
 
 
 def build_ups_data(

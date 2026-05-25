@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 import unittest
 import warnings
 from datetime import date
@@ -149,6 +150,109 @@ class BuildUPSDataTest(unittest.TestCase):
         )
         self.assertEqual(values[oids[0]], f"value-{oids[0]}")
         self.assertEqual(values[oids[-1]], f"value-{oids[-1]}")
+
+    def test_concurrent_snmp_engine_calls_share_threaded_creation(self) -> None:
+        """Concurrent PySNMP engine startup runs once outside the event loop."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that records where its engine is created."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.creation_started = threading.Event()
+                self.release_creation = threading.Event()
+                self.engine_thread: int | None = None
+                self.create_count = 0
+
+            def _create_snmp_engine(self) -> object:
+                """Record the thread used for PySNMP engine initialization."""
+                self.create_count += 1
+                self.engine_thread = threading.get_ident()
+                self.creation_started.set()
+                if not self.release_creation.wait(timeout=1.0):
+                    raise TimeoutError("test did not release SNMP engine creation")
+                return object()
+
+        async def get_engine(client: FakeSNMPClient) -> object:
+            """Return the lazily created SNMP engine."""
+            return await client._async_engine()
+
+        client = FakeSNMPClient()
+        event_loop_thread: int | None = None
+
+        async def run_probe() -> tuple[object, object]:
+            """Create and reuse the SNMP engine from concurrent tasks."""
+            nonlocal event_loop_thread
+            event_loop_thread = threading.get_ident()
+            first_task = asyncio.create_task(get_engine(client))
+            second_task = asyncio.create_task(get_engine(client))
+            self.assertTrue(await asyncio.to_thread(client.creation_started.wait, 1.0))
+            client.release_creation.set()
+            first_engine, second_engine = await asyncio.gather(
+                first_task,
+                second_task,
+            )
+            return first_engine, second_engine
+
+        first_engine, second_engine = asyncio.run(run_probe())
+
+        self.assertIs(first_engine, second_engine)
+        self.assertEqual(client.create_count, 1)
+        self.assertIsNotNone(client.engine_thread)
+        self.assertIsNotNone(event_loop_thread)
+        self.assertNotEqual(client.engine_thread, event_loop_thread)
+
+    def test_closes_engine_created_after_client_close(self) -> None:
+        """Close an engine that finishes startup after the client closes."""
+
+        class FakeEngine:
+            """SNMP engine that records dispatcher closure."""
+
+            def __init__(self) -> None:
+                """Initialize the fake engine."""
+                self.closed = False
+
+            def close_dispatcher(self) -> None:
+                """Record that the engine dispatcher was closed."""
+                self.closed = True
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that blocks engine creation for close-race testing."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.creation_started = threading.Event()
+                self.release_creation = threading.Event()
+                self.created_engine: FakeEngine | None = None
+
+            def _create_snmp_engine(self) -> FakeEngine:
+                """Create a fake engine after the test releases startup."""
+                self.creation_started.set()
+                if not self.release_creation.wait(timeout=1.0):
+                    raise TimeoutError("test did not release SNMP engine creation")
+                self.created_engine = FakeEngine()
+                return self.created_engine
+
+        client = FakeSNMPClient()
+
+        async def run_probe() -> None:
+            """Close the client while engine creation is still in flight."""
+            engine_task = asyncio.create_task(client._async_engine())
+            self.assertTrue(await asyncio.to_thread(client.creation_started.wait, 1.0))
+            client.close()
+            client.release_creation.set()
+            with self.assertRaises(snmp.SNMPError):
+                await engine_task
+
+        asyncio.run(run_probe())
+
+        created_engine = client.created_engine
+        self.assertIsNotNone(created_engine)
+        assert created_engine is not None
+        self.assertTrue(created_engine.closed)
+        self.assertIsNone(client._snmp_engine)
 
     def test_async_get_data_tolerates_mac_walk_failure(self) -> None:
         """Main UPS pulls still succeed when optional IF-MIB discovery fails."""
