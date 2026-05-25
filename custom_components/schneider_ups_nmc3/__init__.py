@@ -69,7 +69,9 @@ async def _async_register_syslog(
         unregister = await manager.async_register(coordinator)
     except OSError as err:
         _LOGGER.warning(
-            "Could not start Schneider UPS NMC3 syslog listener: %s",
+            "Could not start Schneider UPS NMC3 syslog listener on %s:%s: %s",
+            manager.bind_address,
+            manager.port,
             err,
         )
         return

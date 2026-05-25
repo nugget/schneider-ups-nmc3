@@ -163,6 +163,16 @@ class SyslogPushManager:
         self._transport.close()
         self._transport = None
 
+    @property
+    def bind_address(self) -> str:
+        """Return the syslog listener bind address."""
+        return self._bind_address
+
+    @property
+    def port(self) -> int:
+        """Return the syslog listener UDP port."""
+        return self._port
+
     async def _async_start(self) -> None:
         """Start the UDP listener if it is not already running."""
         if self._transport is not None:
@@ -207,8 +217,13 @@ class SyslogPushManager:
                 source_port=source_port,
                 coordinators_by_host=self._coordinators_by_host,
             )
-        except SyslogParseError:
-            _LOGGER.debug("Ignoring unparsable syslog datagram from %s", source_host)
+        except SyslogParseError as err:
+            _LOGGER.debug(
+                "Ignoring unparsable syslog datagram from %s:%s: %s",
+                source_host,
+                source_port,
+                err,
+            )
             return
 
         if dispatch is None:
