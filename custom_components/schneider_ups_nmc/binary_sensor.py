@@ -53,7 +53,7 @@ def _battery_low(data: UPSData) -> bool | None:
     if battery_status is None:
         return None
 
-    return battery_status in {"battery_low", "battery_depleted"}
+    return battery_status in {"low", "depleted"}
 
 
 def _alarm_present(data: UPSData) -> bool | None:

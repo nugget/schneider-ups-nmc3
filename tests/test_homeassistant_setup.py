@@ -360,7 +360,7 @@ class _FakeSNMPClient:
                 "alarm_count": 0,
                 "battery_charge": 97,
                 "battery_replace_indicator": "ok",
-                "battery_status": "battery_normal",
+                "battery_status": "normal",
                 "output_source": "normal",
                 "seconds_on_battery": 0,
             },

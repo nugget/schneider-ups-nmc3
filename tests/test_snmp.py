@@ -52,7 +52,7 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.name, "rack-ups")
         self.assertEqual(data.model, "Smart-UPS 1500")
         self.assertEqual(data.unique_id, "rack_ups")
-        self.assertEqual(data.value("battery_status"), "battery_normal")
+        self.assertEqual(data.value("battery_status"), "normal")
         self.assertEqual(data.value("estimated_runtime"), 2520)
         self.assertEqual(data.value("battery_voltage"), 27.3)
         self.assertEqual(data.value("battery_current"), -0.4)
@@ -315,7 +315,7 @@ class BuildUPSDataTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(data.value("battery_status"), "battery_normal")
+        self.assertEqual(data.value("battery_status"), "normal")
         self.assertEqual(data.value("battery_charge"), 99.7)
         self.assertEqual(data.value("battery_temperature"), 22.4)
         self.assertEqual(data.value("battery_voltage"), 130.2)

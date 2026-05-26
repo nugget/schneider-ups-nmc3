@@ -129,10 +129,22 @@
         "name": "Battery recommended replacement"
       },
       "battery_replace_indicator": {
-        "name": "Battery replacement status"
+        "name": "Battery replacement status",
+        "state": {
+          "needs_replacement": "Needs replacement",
+          "ok": "OK"
+        }
       },
       "battery_status": {
-        "name": "Battery status"
+        "name": "Battery status",
+        "state": {
+          "depleted": "Depleted",
+          "fault": "Fault",
+          "low": "Low",
+          "no_battery_present": "No battery present",
+          "normal": "Normal",
+          "unknown": "Unknown"
+        }
       },
       "battery_temperature": {
         "name": "Battery temperature"
@@ -153,7 +165,19 @@
         "name": "Input line faults"
       },
       "input_line_fail_cause": {
-        "name": "Last input transfer reason"
+        "name": "Last input transfer reason",
+        "state": {
+          "blackout": "Blackout",
+          "brownout": "Brownout",
+          "deep_momentary_sag": "Deep momentary sag",
+          "high_line_voltage": "High line voltage",
+          "large_momentary_spike": "Large momentary spike",
+          "no_transfer": "No transfer",
+          "rate_of_voltage_change": "Rate of voltage change",
+          "self_test": "Self-test",
+          "small_momentary_sag": "Small momentary sag",
+          "small_momentary_spike": "Small momentary spike"
+        }
       },
       "input_power": {
         "name": "Input power"
@@ -186,7 +210,16 @@
         "name": "Output power factor"
       },
       "output_source": {
-        "name": "Output source"
+        "name": "Output source",
+        "state": {
+          "battery": "Battery",
+          "booster": "Booster",
+          "bypass": "Bypass",
+          "none": "None",
+          "normal": "Normal",
+          "other": "Other",
+          "reducer": "Reducer"
+        }
       },
       "output_voltage": {
         "name": "Output voltage"
@@ -198,10 +231,46 @@
         "name": "Last self-test"
       },
       "self_test_result": {
-        "name": "Self-test result"
+        "name": "Self-test result",
+        "state": {
+          "failed": "Failed",
+          "invalid_test": "Invalid test",
+          "ok": "OK",
+          "test_in_progress": "Test in progress"
+        }
       },
       "ups_status": {
-        "name": "UPS status"
+        "name": "UPS status",
+        "state": {
+          "active_load": "Active load",
+          "battery_discharge_spot_mode": "Battery discharge SPoT mode",
+          "charger_only": "Charger only",
+          "charger_spot_mode": "Charger SPoT mode",
+          "distributed_energy_reserve": "Distributed energy reserve",
+          "e_conversion": "eConversion",
+          "eco_mode": "Eco mode",
+          "emergency_static_bypass": "Emergency static bypass",
+          "hardware_failure_bypass": "Hardware failure bypass",
+          "hot_standby": "Hot standby",
+          "inverter_spot_mode": "Inverter SPoT mode",
+          "inverter_standby": "Inverter standby",
+          "off": "Off",
+          "on_battery": "On battery",
+          "on_battery_test": "On battery test",
+          "online": "Online",
+          "power_saving_mode": "Power saving mode",
+          "rebooting": "Rebooting",
+          "self_test": "Self-test",
+          "sleeping_until_power_return": "Sleeping until power return",
+          "smart_boost": "SmartBoost",
+          "smart_trim": "SmartTrim",
+          "software_bypass": "Software bypass",
+          "spot_mode": "SPoT mode",
+          "static_bypass_standby": "Static bypass standby",
+          "switched_bypass": "Switched bypass",
+          "timed_sleeping": "Timed sleeping",
+          "unknown": "Unknown"
+        }
       }
     }
   }
