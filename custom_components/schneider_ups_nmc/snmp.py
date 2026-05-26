@@ -27,6 +27,14 @@ NO_SUCH_PREFIXES = (
     "No Such Instance",
     "No more variables left",
 )
+DATE_FORMATS = (
+    "%m/%d/%Y",
+    "%m/%d/%y",
+    "%d/%m/%Y",
+    "%d/%m/%y",
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+)
 
 
 class SNMPError(Exception):
@@ -567,6 +575,7 @@ def build_ups_data(
 ) -> UPSData:
     """Normalize raw SNMP values into Home Assistant-friendly data."""
     values = dict(raw)
+    values.pop("mac_address", None)
     values["battery_status"] = _enum_name(
         POWERNET_BATTERY_STATUS,
         raw.get("powernet_battery_status_code"),
@@ -649,7 +658,7 @@ def build_ups_data(
         raw.get("self_test_result_code"),
     )
     values["self_test_last_date"] = _date(raw.get("self_test_last_date_raw"))
-    values["mac_address"] = _format_mac_address(raw.get("mac_address"))
+    mac_address = _format_mac_address(raw.get("mac_address"))
 
     manufacturer = _first_text(raw, "manufacturer") or "Schneider Electric"
     model = _first_text(raw, "model", "apc_model")
@@ -672,7 +681,7 @@ def build_ups_data(
         serial_number=serial_number,
         firmware_version=firmware_version,
         agent_version=agent_version,
-        mac_address=values["mac_address"],
+        mac_address=mac_address,
         unique_id=_slug(unique_id),
     )
 
@@ -798,15 +807,20 @@ def _row_sort_key(row_index: str) -> tuple[int, ...]:
 def _first_text(raw: Mapping[str, Any], *keys: str) -> str | None:
     """Return the first non-empty text value from a mapping."""
     for key in keys:
-        value = raw.get(key)
-        if value is None:
-            continue
-
-        text = str(value).strip()
+        text = _text(raw.get(key))
         if text:
             return text
 
     return None
+
+
+def _text(value: Any) -> str | None:
+    """Return a stripped text value when the input is meaningful."""
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    return text or None
 
 
 def _enum_name(enum: Mapping[int, str], value: Any) -> str | None:
@@ -867,11 +881,11 @@ def _minutes_to_seconds(value: Any) -> int | None:
 
 def _date(value: Any) -> date | None:
     """Parse common NMC date strings."""
-    text = _first_text({"value": value}, "value")
+    text = _text(value)
     if text is None or text.lower() == "unknown":
         return None
 
-    for date_format in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+    for date_format in DATE_FORMATS:
         try:
             return datetime.strptime(text, date_format).date()
         except ValueError:
