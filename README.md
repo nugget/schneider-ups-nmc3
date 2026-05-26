@@ -280,8 +280,9 @@ for the integration.
 
 **A battery or self-test date looks wrong.**
 Some NMC firmware returns display-locale date strings over SNMP. Ambiguous slash
-dates such as `01/02/2026` are interpreted US-first as January 2, 2026. ISO
-dates and unambiguous day-first dates such as `13/04/2026` parse correctly.
+dates such as `01/02/2026` are interpreted US-first as January 2, 2026.
+Year-first dates such as `2026-05-25` and `2026/05/25`, plus unambiguous
+day-first dates such as `13/04/2026`, parse correctly.
 
 **The syslog listener cannot start.**
 Another process may already be using the configured UDP port, or multiple UPS

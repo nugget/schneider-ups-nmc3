@@ -358,8 +358,8 @@ class BuildUPSDataTest(unittest.TestCase):
         )
         self.assertEqual(data.value("self_test_last_date"), date(2026, 5, 14))
 
-    def test_parses_ambiguous_slash_dates_us_first(self) -> None:
-        """Ambiguous slash-formatted NMC dates are interpreted US-first."""
+    def test_parses_nmc_date_formats_with_us_first_slash_preference(self) -> None:
+        """Supported NMC date formats keep ambiguous slash dates US-first."""
         cases = {
             "05/04/2026": date(2026, 5, 4),
             "13/04/2026": date(2026, 4, 13),
