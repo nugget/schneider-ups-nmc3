@@ -38,6 +38,78 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertEqual(event.structured_data, "-")
         self.assertEqual(event.event_category, "System TEST")
         self.assertEqual(event.event_text, "APC: Test Syslog.")
+        self.assertEqual(event.structured_data_elements, ())
+
+    def test_parses_rfc5424_structured_data_parameters(self) -> None:
+        """Parse NMC RFC5424 structured data without leaking it into message."""
+        event = syslog.parse_syslog_message(
+            "<14>1 2026-05-26T16:59:45-05:00 "
+            "ups-hor-rack.hollowoak.net su_v2.5.5.1 System 0x0073 "
+            '[meta sequenceId="6" sysUpTime="6441"] '
+            "Connected to UDP syslog server at homeassistant.hollowoak.net"
+        )
+
+        self.assertEqual(event.priority, 14)
+        self.assertEqual(event.facility, "user")
+        self.assertEqual(event.severity, "informational")
+        self.assertEqual(event.hostname, "ups-hor-rack.hollowoak.net")
+        self.assertEqual(event.proc_id, "System")
+        self.assertEqual(event.msg_id, "0x0073")
+        self.assertEqual(
+            event.structured_data,
+            '[meta sequenceId="6" sysUpTime="6441"]',
+        )
+        self.assertEqual(
+            event.structured_data_elements,
+            (
+                syslog.SyslogStructuredDataElement(
+                    element_id="meta",
+                    parameters={
+                        "sequenceId": "6",
+                        "sysUpTime": "6441",
+                    },
+                ),
+            ),
+        )
+        self.assertEqual(
+            event.event_text,
+            "Connected to UDP syslog server at homeassistant.hollowoak.net",
+        )
+        self.assertEqual(event.event_category, "System 0x0073")
+
+    def test_parses_rfc5424_structured_data_quoted_escapes(self) -> None:
+        """Parse quoted structured data parameters with spaces and escapes."""
+        event = syslog.parse_syslog_message(
+            "<14>1 2026-05-26T16:59:45-05:00 "
+            "ups.example.test su_v2.5.5.1 Device 0x1234 "
+            '[probe name="Top of Rack" detail="quoted \\"rack\\" \\] value"] '
+            "Probe metadata changed"
+        )
+
+        self.assertEqual(
+            event.structured_data_elements,
+            (
+                syslog.SyslogStructuredDataElement(
+                    element_id="probe",
+                    parameters={
+                        "name": "Top of Rack",
+                        "detail": 'quoted "rack" ] value',
+                    },
+                ),
+            ),
+        )
+        self.assertEqual(event.event_text, "Probe metadata changed")
+
+    def test_parses_rfc5424_messages_without_structured_data(self) -> None:
+        """Accept RFC5424-like NMC messages that omit structured data."""
+        event = syslog.parse_syslog_message(
+            "<14>1 2026-05-26T16:59:45-05:00 "
+            "ups.example.test su_v2.5.5.1 Device 0x1234 Probe connected"
+        )
+
+        self.assertEqual(event.structured_data, "-")
+        self.assertEqual(event.structured_data_elements, ())
+        self.assertEqual(event.event_text, "Probe connected")
 
     def test_parses_rfc3164_message(self) -> None:
         """Parse legacy RFC3164 syslog messages from known hosts."""
@@ -161,6 +233,42 @@ class ParseSyslogMessageTest(unittest.TestCase):
                 "message": "APC: Test Syslog.",
                 "category": "System TEST",
             },
+        )
+
+    def test_builds_structured_home_assistant_event_state_data(self) -> None:
+        """Include parsed structured data elements in Home Assistant event data."""
+        routed_event = syslog.RoutedSyslogEvent(
+            source_host="192.0.2.10",
+            source_port=514,
+            event=syslog.parse_syslog_message(
+                "<14>1 2026-05-26T16:59:45-05:00 "
+                "ups-hor-rack.hollowoak.net su_v2.5.5.1 System 0x0073 "
+                '[meta sequenceId="6" sysUpTime="6441"] '
+                "Connected to UDP syslog server at homeassistant.hollowoak.net"
+            ),
+        )
+
+        state_data = syslog.syslog_event_state_data(routed_event)
+
+        self.assertEqual(
+            state_data["structured_data"],
+            '[meta sequenceId="6" sysUpTime="6441"]',
+        )
+        self.assertEqual(
+            state_data["structured_data_elements"],
+            [
+                {
+                    "id": "meta",
+                    "parameters": {
+                        "sequenceId": "6",
+                        "sysUpTime": "6441",
+                    },
+                },
+            ],
+        )
+        self.assertEqual(
+            state_data["message"],
+            "Connected to UDP syslog server at homeassistant.hollowoak.net",
         )
 
     def test_event_state_data_omits_empty_optional_fields(self) -> None:
