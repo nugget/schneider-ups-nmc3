@@ -198,17 +198,20 @@ def test_normalize_web_url_treats_blank_values_as_absent(web_url: str | None) ->
             "https://192.0.2.10:8443/?just=query",
         ),
         (
-            "https://192.0.2.10:443;sessionid=abc",
-            "https://192.0.2.10:443;sessionid=abc",
+            "https://192.0.2.10:443/status;sessionid=abc",
+            "https://192.0.2.10:443/status;sessionid=abc",
         ),
         ("  https://example.com  ", "https://example.com"),
+        ("ups.example.test", "https://ups.example.test"),
+        ("ups.example.test:8443/status", "https://ups.example.test:8443/status"),
+        ("192.0.2.10:8443", "https://192.0.2.10:8443"),
     ],
 )
 def test_normalize_web_url_accepts_supported_forms(
     web_url: str,
     expected: str,
 ) -> None:
-    """Accept absolute HTTP(S) web UI URLs and preserve deep-link components."""
+    """Accept HTTP(S) web UI URLs and hostnames."""
     assert config_flow_module._normalize_web_url(web_url) == expected
 
 
@@ -218,6 +221,7 @@ def test_normalize_web_url_accepts_supported_forms(
         "ftp://ups.example.test",
         "https://user:pass@ups.example.test",
         "https://ups.example.test/#settings",
+        "https://ups.example.test:invalid",
         "//ups.example.test",
         "https://",
         "not a url",
@@ -227,7 +231,7 @@ async def test_config_flow_rejects_invalid_web_url(
     hass: HomeAssistant,
     web_url: str,
 ) -> None:
-    """Reject unsafe or non-HTTP(S) NMC web URLs."""
+    """Reject non-HTTP(S) NMC web URL inputs."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_USER},

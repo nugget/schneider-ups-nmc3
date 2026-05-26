@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import SchneiderUPSNMCCoordinator
+from .web_url import normalize_web_url
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import EntityDescription
@@ -61,8 +62,13 @@ class SchneiderUPSNMCEntity(CoordinatorEntity[SchneiderUPSNMCCoordinator]):
 
 def _configuration_url(host: str, web_url: str | None = None) -> str:
     """Return the NMC web configuration URL for a host."""
-    if web_url:
-        return web_url
+    if web_url is not None:
+        try:
+            normalized_web_url = normalize_web_url(web_url)
+        except ValueError:
+            normalized_web_url = None
+        if normalized_web_url is not None:
+            return normalized_web_url
 
     try:
         address = ip_address(host)
