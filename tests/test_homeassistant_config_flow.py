@@ -594,6 +594,10 @@ async def test_reconfigure_flow_clears_web_url_without_storing_none(
             "entry_id": entry.entry_id,
         },
     )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "reconfigure"
+
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
@@ -604,6 +608,10 @@ async def test_reconfigure_flow_clears_web_url_without_storing_none(
             CONF_WEB_URL: "",
         },
     )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "snmpv2c"
+
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {CONF_COMMUNITY: "private"},
