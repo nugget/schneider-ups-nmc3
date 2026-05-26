@@ -19,6 +19,7 @@ class ParseSyslogMessageTest(unittest.TestCase):
         """Expose the default local syslog listener settings."""
         self.assertEqual(syslog.DEFAULT_SYSLOG_BIND_ADDRESS, "0.0.0.0")
         self.assertTrue(syslog.DEFAULT_SYSLOG_ENABLED)
+        self.assertFalse(syslog.DEFAULT_SYSLOG_LOG_RAW_MESSAGES)
         self.assertEqual(syslog.DEFAULT_SYSLOG_PORT, 1514)
 
     def test_parses_nmc3_test_message(self) -> None:
@@ -344,13 +345,41 @@ class SyslogPushManagerTest(unittest.TestCase):
             ),
         )
 
+    def test_logs_received_datagrams_when_explicit_capture_is_enabled(self) -> None:
+        """Log raw syslog datagrams for configured hosts when capture is enabled."""
+        coordinator = _FakeCoordinator(
+            "192.0.2.10",
+            syslog_log_raw_messages=True,
+        )
+        manager = syslog.SyslogPushManager(cast("HomeAssistant", object()))
+        manager._coordinators_by_host[coordinator.host] = coordinator
+
+        with self.assertLogs(
+            "custom_components.schneider_ups_nmc.syslog",
+            level="INFO",
+        ) as logs:
+            manager._handle_datagram(b"not syslog\r\ninvalid \xff", "192.0.2.10", 514)
+
+        self.assertEqual(len(coordinator.parse_failures), 1)
+        self.assertEqual(
+            logs.output,
+            [
+                (
+                    "INFO:custom_components.schneider_ups_nmc.syslog:"
+                    r"Received syslog datagram from 192.0.2.10:514: "
+                    r"not syslog\r\ninvalid \xff"
+                ),
+            ],
+        )
+
 
 class _FakeCoordinator:
     """Minimal coordinator for syslog routing tests."""
 
-    def __init__(self, host: str) -> None:
+    def __init__(self, host: str, *, syslog_log_raw_messages: bool = False) -> None:
         """Initialize the fake coordinator."""
         self.host = host
+        self.syslog_log_raw_messages = syslog_log_raw_messages
         self.parse_failures: list[syslog.RoutedSyslogParseFailure] = []
 
     async def async_handle_syslog_event(

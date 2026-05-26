@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_SYSLOG_BIND_ADDRESS = "0.0.0.0"
 DEFAULT_SYSLOG_ENABLED = True
+DEFAULT_SYSLOG_LOG_RAW_MESSAGES = False
 DEFAULT_SYSLOG_PORT = 1514
 RFC5424_HEADER_RE = re.compile(
     r"^<(?P<priority>\d+)>(?P<version>\d+) "
@@ -137,6 +138,7 @@ class SyslogEventCoordinator(Protocol):
     """Coordinator protocol used by the syslog router."""
 
     host: str
+    syslog_log_raw_messages: bool
 
     async def async_handle_syslog_event(self, event: RoutedSyslogEvent) -> None:
         """Handle a routed syslog event."""
@@ -251,6 +253,18 @@ class SyslogPushManager:
         source_port: int,
     ) -> None:
         """Route a syslog datagram to the matching coordinator."""
+        coordinator = syslog_coordinator_for_source(
+            source_host,
+            self._coordinators_by_host,
+        )
+        if coordinator is not None and coordinator.syslog_log_raw_messages:
+            _LOGGER.info(
+                "Received syslog datagram from %s:%s: %s",
+                source_host,
+                source_port,
+                _syslog_datagram_log_text(raw),
+            )
+
         try:
             dispatch = route_syslog_datagram(
                 raw,
@@ -259,10 +273,6 @@ class SyslogPushManager:
                 coordinators_by_host=self._coordinators_by_host,
             )
         except SyslogParseError as err:
-            coordinator = syslog_coordinator_for_source(
-                source_host,
-                self._coordinators_by_host,
-            )
             if coordinator is not None:
                 coordinator.async_handle_syslog_parse_failure(
                     RoutedSyslogParseFailure(
@@ -324,6 +334,12 @@ def parse_syslog_message(raw: bytes | str) -> SyslogEvent:
         return _parse_rfc3164_match(match)
 
     raise SyslogParseError("Unsupported syslog message format")
+
+
+def _syslog_datagram_log_text(raw: bytes) -> str:
+    """Return a syslog datagram as single-line text for explicit capture logging."""
+    text = raw.decode("utf-8", errors="backslashreplace")
+    return text.replace("\r", r"\r").replace("\n", r"\n")
 
 
 def _parse_rfc5424_match(match: re.Match[str]) -> SyslogEvent:
