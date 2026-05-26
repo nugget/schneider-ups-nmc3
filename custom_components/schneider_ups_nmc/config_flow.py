@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -60,6 +59,7 @@ from .syslog import (
     DEFAULT_SYSLOG_ENABLED,
     DEFAULT_SYSLOG_PORT,
 )
+from .web_url import normalize_web_url as _normalize_web_url
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -104,7 +104,6 @@ RECONFIGURE_REPLACED_DATA_KEYS = {
     CONF_USERNAME,
     CONF_WEB_URL,
 }
-WEB_URL_SCHEMES = {"http", "https"}
 
 
 class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
@@ -443,36 +442,6 @@ def _normalize_web_url_input(data: dict[str, Any]) -> dict[str, str]:
 def _normalize_options_input(data: dict[str, Any]) -> dict[str, str]:
     """Normalize options-flow input and return field-level errors."""
     return _normalize_web_url_input(data) | _normalize_syslog_bind_address_input(data)
-
-
-def _normalize_web_url(value: Any) -> str | None:
-    """Return a normalized HTTP(S) URL for the NMC web UI."""
-    if value is None:
-        return None
-
-    web_url = str(value).strip()
-    if not web_url:
-        return None
-
-    if any(char.isspace() for char in web_url):
-        raise ValueError
-
-    if "://" not in web_url:
-        web_url = f"https://{web_url}"
-
-    parsed = urlparse(web_url)
-    if parsed.scheme not in WEB_URL_SCHEMES or not parsed.netloc:
-        raise ValueError
-    if parsed.username or parsed.password or parsed.fragment:
-        raise ValueError
-    try:
-        _ = parsed.port
-    except ValueError as err:
-        raise ValueError from err
-    if parsed.hostname is None:
-        raise ValueError
-
-    return web_url
 
 
 def _normalize_syslog_bind_address_input(data: dict[str, Any]) -> dict[str, str]:
