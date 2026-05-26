@@ -2,23 +2,13 @@
 
 from __future__ import annotations
 
-import sys
 import unittest
-from importlib import util
-from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
-SYSLOG_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "custom_components"
-    / "schneider_ups_nmc"
-    / "syslog.py"
-)
-SYSLOG_SPEC = util.spec_from_file_location("schneider_ups_nmc_syslog", SYSLOG_PATH)
-assert SYSLOG_SPEC is not None
-syslog = util.module_from_spec(SYSLOG_SPEC)
-sys.modules[SYSLOG_SPEC.name] = syslog
-assert SYSLOG_SPEC.loader is not None
-SYSLOG_SPEC.loader.exec_module(syslog)
+from custom_components.schneider_ups_nmc import syslog
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 
 class ParseSyslogMessageTest(unittest.TestCase):
@@ -156,7 +146,7 @@ class SyslogPushManagerTest(unittest.TestCase):
     def test_reports_listener_configuration(self) -> None:
         """Report whether the manager matches requested listener settings."""
         manager = syslog.SyslogPushManager(
-            object(),
+            cast("HomeAssistant", object()),
             bind_address="127.0.0.1",
             port=1515,
         )

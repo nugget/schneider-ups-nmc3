@@ -262,14 +262,14 @@ class SyslogPushManager:
 class _SyslogUDPProtocol(asyncio.DatagramProtocol):
     """Asyncio UDP protocol for syslog datagrams."""
 
-    def __init__(self, callback: Callable[[bytes, str, int], None]) -> None:
+    def __init__(self, on_datagram: Callable[[bytes, str, int], None]) -> None:
         """Initialize the protocol."""
-        self._callback = callback
+        self._on_datagram = on_datagram
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle an incoming UDP datagram."""
         source_host, source_port = addr[:2]
-        self._callback(data, source_host, source_port)
+        self._on_datagram(data, source_host, source_port)
 
 
 def parse_syslog_message(raw: bytes | str) -> SyslogEvent:

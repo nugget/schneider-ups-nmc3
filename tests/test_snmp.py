@@ -3,30 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import threading
 import unittest
 import warnings
 from datetime import date
-from importlib import util
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from custom_components.schneider_ups_nmc import snmp
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-SNMP_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "custom_components"
-    / "schneider_ups_nmc"
-    / "snmp.py"
-)
-SNMP_SPEC = util.spec_from_file_location("schneider_ups_nmc_snmp", SNMP_PATH)
-assert SNMP_SPEC is not None
-snmp = util.module_from_spec(SNMP_SPEC)
-sys.modules[SNMP_SPEC.name] = snmp
-assert SNMP_SPEC.loader is not None
-SNMP_SPEC.loader.exec_module(snmp)
 
 
 class BuildUPSDataTest(unittest.TestCase):
