@@ -51,7 +51,7 @@ async def async_setup_entry(
         await _async_register_syslog(hass, entry, coordinator)
     except Exception:
         coordinator.close()
-        object.__delattr__(entry, "runtime_data")
+        del entry.runtime_data
         raise
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
