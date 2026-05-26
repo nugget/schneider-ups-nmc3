@@ -15,6 +15,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     SYSLOG_MANAGER,
+    TROUBLESHOOTING_URL,
 )
 from .coordinator import SYSLOG_PARSE_FAILURE_ISSUE, SchneiderUPSNMCCoordinator
 from .syslog import (
@@ -180,8 +181,15 @@ def _create_syslog_listener_conflict_issue(
         hass,
         DOMAIN,
         _syslog_issue_id(entry, SYSLOG_LISTENER_CONFLICT_ISSUE),
-        is_fixable=False,
+        data={
+            "active": active,
+            "entry_id": entry.entry_id,
+            "name": entry.title,
+            "requested": requested,
+        },
+        is_fixable=True,
         issue_domain=DOMAIN,
+        learn_more_url=TROUBLESHOOTING_URL,
         severity=ir.IssueSeverity.ERROR,
         translation_key=SYSLOG_LISTENER_CONFLICT_ISSUE,
         translation_placeholders={
@@ -191,6 +199,7 @@ def _create_syslog_listener_conflict_issue(
         },
     )
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_FAILED_ISSUE)
+    _delete_syslog_issue(hass, entry, SYSLOG_PARSE_FAILURE_ISSUE)
 
 
 def _create_syslog_listener_failed_issue(
@@ -205,8 +214,15 @@ def _create_syslog_listener_failed_issue(
         hass,
         DOMAIN,
         _syslog_issue_id(entry, SYSLOG_LISTENER_FAILED_ISSUE),
-        is_fixable=False,
+        data={
+            "address": address,
+            "entry_id": entry.entry_id,
+            "error": error,
+            "name": entry.title,
+        },
+        is_fixable=True,
         issue_domain=DOMAIN,
+        learn_more_url=TROUBLESHOOTING_URL,
         severity=ir.IssueSeverity.ERROR,
         translation_key=SYSLOG_LISTENER_FAILED_ISSUE,
         translation_placeholders={
@@ -216,6 +232,7 @@ def _create_syslog_listener_failed_issue(
         },
     )
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_CONFLICT_ISSUE)
+    _delete_syslog_issue(hass, entry, SYSLOG_PARSE_FAILURE_ISSUE)
 
 
 def _delete_syslog_issues(

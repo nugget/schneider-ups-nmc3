@@ -28,3 +28,4 @@ DEFAULT_RETRIES = 1
 DEFAULT_SCAN_INTERVAL = 60
 DEFAULT_TIMEOUT = 2.0
 SYSLOG_MANAGER = "syslog_manager"
+TROUBLESHOOTING_URL = "https://github.com/nugget/schneider-ups-nmc#troubleshooting"

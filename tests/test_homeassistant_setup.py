@@ -30,6 +30,7 @@ from custom_components.schneider_ups_nmc.const import (
     CONF_SYSLOG_PORT,
     CONF_WEB_URL,
     DOMAIN,
+    TROUBLESHOOTING_URL,
 )
 from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, SNMPError, UPSData
 from custom_components.schneider_ups_nmc.syslog import (
@@ -131,6 +132,14 @@ def test_coordinator_creates_syslog_parse_failure_repair_issue(
         f"{coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE}_{ENTRY_ID}",
     )
     assert issue is not None
+    assert issue.is_fixable
+    assert issue.learn_more_url == TROUBLESHOOTING_URL
+    assert issue.data == {
+        "entry_id": ENTRY_ID,
+        "error": "Unsupported syslog message format",
+        "name": "Rack UPS",
+        "source": "192.0.2.10:514",
+    }
     assert issue.severity is ir.IssueSeverity.WARNING
     assert issue.translation_placeholders == {
         "error": "Unsupported syslog message format",
@@ -359,6 +368,16 @@ async def test_syslog_register_failure_creates_and_clears_repair_issue(
             CONF_SYSLOG_PORT: 1515,
         }
     )
+    stale_parse_issue_id = f"{coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE}_{ENTRY_ID}"
+    registry = ir.async_get(hass)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        stale_parse_issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE,
+    )
 
     await integration._async_register_syslog(
         hass,
@@ -366,17 +385,25 @@ async def test_syslog_register_failure_creates_and_clears_repair_issue(
         cast("SchneiderUPSNMCCoordinator", object()),
     )
 
-    registry = ir.async_get(hass)
     issue = registry.async_get_issue(
         DOMAIN,
         f"{integration.SYSLOG_LISTENER_FAILED_ISSUE}_{ENTRY_ID}",
     )
     assert issue is not None
+    assert issue.is_fixable
+    assert issue.learn_more_url == TROUBLESHOOTING_URL
+    assert issue.data == {
+        "address": "127.0.0.1:1515",
+        "entry_id": ENTRY_ID,
+        "error": "address already in use",
+        "name": "Rack UPS",
+    }
     assert issue.translation_placeholders == {
         "address": "127.0.0.1:1515",
         "error": "address already in use",
         "name": "Rack UPS",
     }
+    assert registry.async_get_issue(DOMAIN, stale_parse_issue_id) is None
 
     disabled_entry = _mock_entry(options={CONF_SYSLOG_ENABLED: False})
     await integration._async_register_syslog(
@@ -411,6 +438,16 @@ async def test_syslog_listener_conflict_creates_repair_issue(
             CONF_SYSLOG_PORT: 1515,
         }
     )
+    stale_parse_issue_id = f"{coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE}_{ENTRY_ID}"
+    registry = ir.async_get(hass)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        stale_parse_issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE,
+    )
 
     await integration._async_register_syslog(
         hass,
@@ -418,11 +455,20 @@ async def test_syslog_listener_conflict_creates_repair_issue(
         cast("SchneiderUPSNMCCoordinator", object()),
     )
 
-    issue = ir.async_get(hass).async_get_issue(
+    issue = registry.async_get_issue(
         DOMAIN,
         f"{integration.SYSLOG_LISTENER_CONFLICT_ISSUE}_{ENTRY_ID}",
     )
     assert issue is not None
+    assert issue.is_fixable
+    assert issue.learn_more_url == TROUBLESHOOTING_URL
+    assert issue.data == {
+        "active": "0.0.0.0:1514",
+        "entry_id": ENTRY_ID,
+        "name": "Rack UPS",
+        "requested": "127.0.0.1:1515",
+    }
+    assert registry.async_get_issue(DOMAIN, stale_parse_issue_id) is None
     assert issue.translation_placeholders == {
         "active": "0.0.0.0:1514",
         "name": "Rack UPS",

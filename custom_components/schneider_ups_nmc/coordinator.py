@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TIMEOUT,
     DOMAIN,
+    TROUBLESHOOTING_URL,
 )
 from .snmp import (
     AUTH_PROTOCOL_NONE,
@@ -92,7 +93,6 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
         """Handle a pushed syslog event from the NMC."""
         self._last_syslog_event = event
         self._last_syslog_event_received_at = datetime.now(UTC)
-        self._delete_syslog_parse_failure_issue()
         for listener in tuple(self._syslog_listeners):
             try:
                 listener(event)
@@ -115,8 +115,15 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
             self.hass,
             DOMAIN,
             self._syslog_parse_failure_issue_id(),
-            is_fixable=False,
+            data={
+                "entry_id": self.config_entry.entry_id,
+                "error": failure.error,
+                "name": self.config_entry.title,
+                "source": _format_host_port(failure.source_host, failure.source_port),
+            },
+            is_fixable=True,
             issue_domain=DOMAIN,
+            learn_more_url=TROUBLESHOOTING_URL,
             severity=ir.IssueSeverity.WARNING,
             translation_key=SYSLOG_PARSE_FAILURE_ISSUE,
             translation_placeholders={
@@ -142,10 +149,6 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
         self._last_syslog_event = None
         self._last_syslog_event_received_at = None
         return None
-
-    def _delete_syslog_parse_failure_issue(self) -> None:
-        """Delete stale syslog parse failure repair issues."""
-        ir.async_delete_issue(self.hass, DOMAIN, self._syslog_parse_failure_issue_id())
 
     def _syslog_parse_failure_issue_id(self) -> str:
         """Return the per-entry syslog parse failure repair issue ID."""

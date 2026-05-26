@@ -75,14 +75,48 @@
   },
   "issues": {
     "syslog_listener_conflict": {
+      "fix_flow": {
+        "step": {
+          "syslog_options": {
+            "title": "Update syslog listener settings",
+            "description": "Choose syslog listener settings for {name}. This entry requested {requested}, but the shared listener is already using {active}. Use matching listener settings for all syslog-enabled UPS entries, or disable syslog for this entry.",
+            "data": {
+              "syslog_enabled": "[%key:component::schneider_ups_nmc::options::step::init::data::syslog_enabled%]",
+              "syslog_bind_address": "[%key:component::schneider_ups_nmc::options::step::init::data::syslog_bind_address%]",
+              "syslog_port": "[%key:component::schneider_ups_nmc::options::step::init::data::syslog_port%]"
+            }
+          }
+        }
+      },
       "title": "Syslog listener settings conflict",
       "description": "The syslog listener for {name} could not start on {requested} because another APC UPS NMC entry is already using {active}. Use the same syslog listener settings for all syslog-enabled UPS entries, or disable syslog for this entry."
     },
     "syslog_listener_failed": {
+      "fix_flow": {
+        "step": {
+          "syslog_options": {
+            "title": "Update syslog listener settings",
+            "description": "Choose syslog listener settings for {name}. The listener could not start on {address}: {error}. Change the bind address or UDP port, free the port, or disable syslog for this entry.",
+            "data": {
+              "syslog_enabled": "[%key:component::schneider_ups_nmc::options::step::init::data::syslog_enabled%]",
+              "syslog_bind_address": "[%key:component::schneider_ups_nmc::options::step::init::data::syslog_bind_address%]",
+              "syslog_port": "[%key:component::schneider_ups_nmc::options::step::init::data::syslog_port%]"
+            }
+          }
+        }
+      },
       "title": "Syslog listener could not start",
       "description": "The syslog listener for {name} could not start on {address}: {error}. Change the bind address or UDP port, free the port, or disable syslog for this entry."
     },
     "syslog_parse_failure": {
+      "fix_flow": {
+        "step": {
+          "confirm_disable": {
+            "title": "Disable syslog for this UPS",
+            "description": "A syslog message from {source} for {name} could not be parsed: {error}. Submit to disable syslog for this entry. You can also dismiss this repair and adjust the NMC syslog language or format outside Home Assistant."
+          }
+        }
+      },
       "title": "Syslog messages could not be parsed",
       "description": "A syslog message from {source} for {name} could not be parsed: {error}. Check that the UPS network management card is sending syslog in English and using a supported syslog format."
     }
