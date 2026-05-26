@@ -104,6 +104,21 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.mac_address, "00:c0:b7:12:34:56")
         self.assertEqual(data.value("mac_address"), "00:c0:b7:12:34:56")
 
+    def test_snmpv2c_missing_community_is_configuration_error(self) -> None:
+        """Missing local SNMPv2c credentials produce a configuration error."""
+        client = snmp.SNMPClient(
+            snmp.SNMPConnectionConfig(
+                host="192.0.2.10",
+                version=snmp.SNMP_VERSION_2C,
+            )
+        )
+
+        with self.assertRaisesRegex(
+            snmp.SNMPConfigurationError,
+            "SNMPv2c community is required",
+        ):
+            client._auth_data()
+
     def test_snmpv3_missing_auth_key_is_configuration_error(self) -> None:
         """Missing local SNMPv3 credentials produce a configuration error."""
         client = snmp.SNMPClient(
@@ -549,6 +564,35 @@ class BuildUPSDataTest(unittest.TestCase):
             client.close()
 
         self.assertTrue(engine.transport_dispatcher.closed)
+
+    def test_close_supports_legacy_transport_dispatcher(self) -> None:
+        """Closing SNMP clients supports old PySNMP dispatcher aliases."""
+
+        class FakeTransportDispatcher:
+            """Fake legacy PySNMP transport dispatcher."""
+
+            def __init__(self) -> None:
+                """Initialize the fake dispatcher."""
+                self.closed = False
+
+            def closeDispatcher(self) -> None:  # noqa: N802
+                """Record legacy dispatcher close calls."""
+                self.closed = True
+
+        class FakeSNMPEngine:
+            """Fake PySNMP engine with only the deprecated dispatcher name."""
+
+            def __init__(self) -> None:
+                """Initialize the fake engine."""
+                self.transportDispatcher = FakeTransportDispatcher()
+
+        client = snmp.SNMPClient(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+        engine = FakeSNMPEngine()
+        client._snmp_engine = engine
+
+        client.close()
+
+        self.assertTrue(engine.transportDispatcher.closed)
 
 
 if __name__ == "__main__":

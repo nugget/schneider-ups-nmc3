@@ -44,6 +44,7 @@
       "invalid_snmp_configuration": "SNMP settings are incomplete or invalid.",
       "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments.",
       "missing_auth_key": "Authentication passphrase is required.",
+      "missing_community": "Community is required.",
       "missing_privacy_key": "Privacy passphrase is required.",
       "missing_username": "Username is required.",
       "privacy_requires_auth": "Privacy requires authentication."

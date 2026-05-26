@@ -83,6 +83,7 @@ PRIVACY_PROTOCOL_OPTIONS = {
     PRIVACY_PROTOCOL_AES: "AES",
 }
 CONFIGURATION_ERROR_MESSAGES = {
+    "SNMPv2c community is required": {CONF_COMMUNITY: "missing_community"},
     "SNMPv3 requires a username": {CONF_USERNAME: "missing_username"},
     "SNMPv3 authentication passphrase is required": {CONF_AUTH_KEY: "missing_auth_key"},
     "SNMPv3 privacy passphrase is required": {CONF_PRIVACY_KEY: "missing_privacy_key"},
