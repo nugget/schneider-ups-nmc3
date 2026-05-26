@@ -260,11 +260,14 @@ class SNMPClient:
 
     async def async_get_mac_address(self) -> str | None:
         """Fetch the management card MAC address from IF-MIB."""
+        self._raise_if_closed()
         if self._mac_address is not None:
             return self._mac_address
 
         interface_types = await self._async_walk_column(IF_TYPE_OID)
+        self._raise_if_closed()
         physical_addresses = await self._async_walk_column(IF_PHYS_ADDRESS_OID)
+        self._raise_if_closed()
         mac_address = _select_interface_mac_address(
             interface_types,
             physical_addresses,
@@ -398,6 +401,11 @@ class SNMPClient:
             current_oid = result_oid
 
         return values
+
+    def _raise_if_closed(self) -> None:
+        """Raise when a lifecycle owner uses the client after teardown."""
+        if self._closed:
+            raise SNMPError("SNMP client is closed")
 
     def close(self) -> None:
         """Close the underlying SNMP dispatcher."""

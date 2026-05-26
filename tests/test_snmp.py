@@ -422,6 +422,54 @@ class BuildUPSDataTest(unittest.TestCase):
         client.close()
         self.assertEqual(client._mac_address, None)
 
+    def test_async_get_mac_address_rejects_cached_value_after_close(self) -> None:
+        """Closed clients do not return stale cached MAC addresses."""
+        client = snmp.SNMPClient(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+        client.close()
+        client._mac_address = "00:c0:b7:12:34:56"
+
+        with self.assertRaises(snmp.SNMPError):
+            asyncio.run(client.async_get_mac_address())
+
+    def test_async_get_mac_address_does_not_cache_after_close(self) -> None:
+        """MAC discovery that finishes after close does not repopulate the cache."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that blocks IF-MIB walks for close-race testing."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.release_walk = threading.Event()
+                self.walk_count = 0
+                self.walk_started = threading.Event()
+
+            async def _async_walk_column(self, column_oid: str) -> dict[str, object]:
+                """Return fake IF-MIB values after the test releases the walk."""
+                self.walk_count += 1
+                self.walk_started.set()
+                if not await asyncio.to_thread(self.release_walk.wait, 1.0):
+                    raise TimeoutError("test did not release IF-MIB walk")
+                if column_oid == snmp.IF_TYPE_OID:
+                    return {"1": snmp.ETHERNET_CSMACD_IF_TYPE}
+                return {"1": bytes.fromhex("00c0b7123456")}
+
+        client = FakeSNMPClient()
+
+        async def run_probe() -> None:
+            """Close the client while MAC discovery is still in flight."""
+            mac_task = asyncio.create_task(client.async_get_mac_address())
+            self.assertTrue(await asyncio.to_thread(client.walk_started.wait, 1.0))
+            client.close()
+            client.release_walk.set()
+            with self.assertRaises(snmp.SNMPError):
+                await mac_task
+
+        asyncio.run(run_probe())
+
+        self.assertEqual(client._mac_address, None)
+        self.assertEqual(client.walk_count, 1)
+
     def test_async_get_mac_address_retries_missing_resolution(self) -> None:
         """Missing MAC discovery is not cached."""
 
