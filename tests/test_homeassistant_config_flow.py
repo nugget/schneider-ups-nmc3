@@ -177,12 +177,50 @@ async def test_config_flow_duplicate_manual_add_does_not_rewrite_existing_entry(
     assert _FakeConfigFlowSNMPClient.instances[0].closed
 
 
+@pytest.mark.parametrize("web_url", ["", "   ", None])
+def test_normalize_web_url_treats_blank_values_as_absent(web_url: str | None) -> None:
+    """Treat empty web URL input as no override."""
+    assert config_flow_module._normalize_web_url(web_url) is None
+
+
+@pytest.mark.parametrize(
+    ("web_url", "expected"),
+    [
+        ("http://192.0.2.10", "http://192.0.2.10"),
+        ("https://192.0.2.10:443", "https://192.0.2.10:443"),
+        ("https://192.0.2.10:443/path", "https://192.0.2.10:443/path"),
+        (
+            "https://192.0.2.10:443/path?query=1",
+            "https://192.0.2.10:443/path?query=1",
+        ),
+        (
+            "https://192.0.2.10:8443/?just=query",
+            "https://192.0.2.10:8443/?just=query",
+        ),
+        (
+            "https://192.0.2.10:443;sessionid=abc",
+            "https://192.0.2.10:443;sessionid=abc",
+        ),
+        ("  https://example.com  ", "https://example.com"),
+    ],
+)
+def test_normalize_web_url_accepts_supported_forms(
+    web_url: str,
+    expected: str,
+) -> None:
+    """Accept absolute HTTP(S) web UI URLs and preserve deep-link components."""
+    assert config_flow_module._normalize_web_url(web_url) == expected
+
+
 @pytest.mark.parametrize(
     "web_url",
     [
         "ftp://ups.example.test",
         "https://user:pass@ups.example.test",
         "https://ups.example.test/#settings",
+        "//ups.example.test",
+        "https://",
+        "not a url",
     ],
 )
 async def test_config_flow_rejects_invalid_web_url(
