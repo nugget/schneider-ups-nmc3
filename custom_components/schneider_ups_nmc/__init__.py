@@ -16,7 +16,7 @@ from .const import (
     PLATFORMS,
     SYSLOG_MANAGER,
 )
-from .coordinator import SchneiderUPSNMCCoordinator
+from .coordinator import SYSLOG_PARSE_FAILURE_ISSUE, SchneiderUPSNMCCoordinator
 from .syslog import (
     DEFAULT_SYSLOG_BIND_ADDRESS,
     DEFAULT_SYSLOG_ENABLED,
@@ -223,9 +223,10 @@ def _delete_syslog_issues(
     hass: HomeAssistant,
     entry: SchneiderUPSNMCConfigEntry,
 ) -> None:
-    """Delete stale syslog listener repair issues for a config entry."""
+    """Delete stale syslog repair issues for a config entry."""
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_CONFLICT_ISSUE)
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_FAILED_ISSUE)
+    _delete_syslog_issue(hass, entry, SYSLOG_PARSE_FAILURE_ISSUE)
 
 
 def _delete_syslog_issue(

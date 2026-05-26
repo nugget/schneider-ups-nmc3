@@ -81,6 +81,10 @@
     "syslog_listener_failed": {
       "title": "Syslog listener could not start",
       "description": "The syslog listener for {name} could not start on {address}: {error}. Change the bind address or UDP port, free the port, or disable syslog for this entry."
+    },
+    "syslog_parse_failure": {
+      "title": "Syslog messages could not be parsed",
+      "description": "A syslog message from {source} for {name} could not be parsed: {error}. Check that the UPS network management card is sending syslog in English and using a supported syslog format."
     }
   },
   "entity": {

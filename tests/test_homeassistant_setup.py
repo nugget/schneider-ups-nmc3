@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import pytest
@@ -30,6 +31,11 @@ from custom_components.schneider_ups_nmc.const import (
     DOMAIN,
 )
 from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, SNMPError, UPSData
+from custom_components.schneider_ups_nmc.syslog import (
+    RoutedSyslogEvent,
+    RoutedSyslogParseFailure,
+    parse_syslog_message,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -57,6 +63,86 @@ def test_configuration_url_formats_ip_hosts() -> None:
         )
         == "https://ups.example.test:8443/status"
     )
+
+
+def test_coordinator_expires_stale_syslog_diagnostic_event(
+    hass: HomeAssistant,
+) -> None:
+    """Expire the latest syslog event after the diagnostics retention window."""
+    coordinator = coordinator_module.SchneiderUPSNMCCoordinator(hass, _mock_entry())
+    coordinator._last_syslog_event = RoutedSyslogEvent(
+        source_host="192.0.2.10",
+        source_port=514,
+        event=parse_syslog_message(
+            "<8>1 2026-05-25T01:20:40-05:00 "
+            "ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog."
+        ),
+    )
+    coordinator._last_syslog_event_received_at = (
+        datetime.now(UTC)
+        - coordinator_module.SYSLOG_EVENT_DIAGNOSTIC_TTL
+        - timedelta(seconds=1)
+    )
+
+    assert coordinator.last_syslog_event is None
+    assert coordinator._last_syslog_event is None
+
+    coordinator.close()
+
+
+def test_coordinator_creates_syslog_parse_failure_repair_issue(
+    hass: HomeAssistant,
+) -> None:
+    """Create a Repair issue when a known NMC sends unparsable syslog."""
+    coordinator = coordinator_module.SchneiderUPSNMCCoordinator(hass, _mock_entry())
+
+    coordinator.async_handle_syslog_parse_failure(
+        RoutedSyslogParseFailure(
+            source_host="192.0.2.10",
+            source_port=514,
+            error="Unsupported syslog message format",
+        )
+    )
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN,
+        f"{coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE}_{ENTRY_ID}",
+    )
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.translation_placeholders == {
+        "error": "Unsupported syslog message format",
+        "name": "Rack UPS",
+        "source": "192.0.2.10:514",
+    }
+    assert coordinator.syslog_parse_failure_count == 1
+
+    coordinator.close()
+
+
+def test_coordinator_formats_ipv6_syslog_parse_failure_source(
+    hass: HomeAssistant,
+) -> None:
+    """Bracket IPv6 sources in syslog parse failure Repair placeholders."""
+    coordinator = coordinator_module.SchneiderUPSNMCCoordinator(hass, _mock_entry())
+
+    coordinator.async_handle_syslog_parse_failure(
+        RoutedSyslogParseFailure(
+            source_host="::ffff:192.0.2.10",
+            source_port=514,
+            error="Unsupported syslog message format",
+        )
+    )
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN,
+        f"{coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE}_{ENTRY_ID}",
+    )
+    assert issue is not None
+    assert issue.translation_placeholders is not None
+    assert issue.translation_placeholders["source"] == "[::ffff:192.0.2.10]:514"
+
+    coordinator.close()
 
 
 async def test_config_entry_sets_up_entities_and_unloads(

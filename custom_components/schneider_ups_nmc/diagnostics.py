@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
     from .coordinator import SchneiderUPSNMCCoordinator
-    from .syslog import RoutedSyslogEvent
+    from .syslog import RoutedSyslogEvent, RoutedSyslogParseFailure
 
 TO_REDACT = {
     CONF_AUTH_KEY,
@@ -50,6 +50,12 @@ async def async_get_config_entry_diagnostics(
             "mac_address": data.mac_address if data else None,
         },
         "last_syslog_event": _routed_syslog_event(coordinator.last_syslog_event),
+        "syslog_parse_failures": {
+            "count": coordinator.syslog_parse_failure_count,
+            "last_failure": _routed_syslog_parse_failure(
+                coordinator.last_syslog_parse_failure
+            ),
+        },
         "available_keys": sorted(data.values.keys()) if data else [],
     }
 
@@ -70,4 +76,18 @@ def _routed_syslog_event(event: RoutedSyslogEvent | None) -> dict[str, Any] | No
         "event_category": syslog_event.event_category,
         "event_text": syslog_event.event_text,
         "timestamp": syslog_event.timestamp.isoformat(),
+    }
+
+
+def _routed_syslog_parse_failure(
+    failure: RoutedSyslogParseFailure | None,
+) -> dict[str, Any] | None:
+    """Return diagnostic data for the last syslog parse failure."""
+    if failure is None:
+        return None
+
+    return {
+        "source_host": failure.source_host,
+        "source_port": failure.source_port,
+        "error": failure.error,
     }

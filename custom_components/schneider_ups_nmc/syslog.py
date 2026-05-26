@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import re
 import socket
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -27,6 +28,12 @@ RFC5424_RE = re.compile(
     r"(?P<proc_id>\S+) "
     r"(?P<msg_id>\S+) "
     r"(?P<structured_data>\S+) "
+    r"(?P<message>.*)$"
+)
+RFC3164_RE = re.compile(
+    r"^<(?P<priority>\d+)>(?P<timestamp>[A-Z][a-z]{2}\s+\d{1,2} "
+    r"\d{2}:\d{2}:\d{2}) "
+    r"(?P<hostname>\S+) "
     r"(?P<message>.*)$"
 )
 
@@ -102,6 +109,15 @@ class RoutedSyslogEvent:
 
 
 @dataclass(frozen=True)
+class RoutedSyslogParseFailure:
+    """An unparsable syslog datagram from a configured packet source."""
+
+    source_host: str
+    source_port: int
+    error: str
+
+
+@dataclass(frozen=True)
 class SyslogDispatch:
     """A parsed syslog event matched to a configured coordinator."""
 
@@ -116,6 +132,12 @@ class SyslogEventCoordinator(Protocol):
 
     async def async_handle_syslog_event(self, event: RoutedSyslogEvent) -> None:
         """Handle a routed syslog event."""
+
+    def async_handle_syslog_parse_failure(
+        self,
+        failure: RoutedSyslogParseFailure,
+    ) -> None:
+        """Handle an unparsable syslog datagram from this coordinator's NMC."""
 
 
 class SyslogPushManager:
@@ -197,7 +219,7 @@ class SyslogPushManager:
 
     async def _async_route_keys(self, host: str) -> set[str]:
         """Return hostnames and resolved addresses that may identify one NMC."""
-        route_keys = {host}
+        route_keys = syslog_route_keys(host)
         try:
             address_info = await self._hass.loop.getaddrinfo(
                 host,
@@ -210,7 +232,7 @@ class SyslogPushManager:
 
         for *_, socket_address in address_info:
             if socket_address:
-                route_keys.add(str(socket_address[0]))
+                route_keys.update(syslog_route_keys(str(socket_address[0])))
 
         return route_keys
 
@@ -229,6 +251,18 @@ class SyslogPushManager:
                 coordinators_by_host=self._coordinators_by_host,
             )
         except SyslogParseError as err:
+            coordinator = syslog_coordinator_for_source(
+                source_host,
+                self._coordinators_by_host,
+            )
+            if coordinator is not None:
+                coordinator.async_handle_syslog_parse_failure(
+                    RoutedSyslogParseFailure(
+                        source_host=source_host,
+                        source_port=source_port,
+                        error=str(err),
+                    )
+                )
             _LOGGER.debug(
                 "Ignoring unparsable syslog datagram from %s:%s: %s",
                 source_host,
@@ -276,12 +310,21 @@ def parse_syslog_message(raw: bytes | str) -> SyslogEvent:
     """Parse an NMC syslog message."""
     text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
     text = text.strip()
-    match = RFC5424_RE.match(text)
-    if match is None:
-        raise SyslogParseError("Unsupported syslog message format")
+    if match := RFC5424_RE.match(text):
+        return _parse_rfc5424_match(match)
+    if match := RFC3164_RE.match(text):
+        return _parse_rfc3164_match(match)
 
+    raise SyslogParseError("Unsupported syslog message format")
+
+
+def _parse_rfc5424_match(match: re.Match[str]) -> SyslogEvent:
+    """Return a syslog event from an RFC5424-style regex match."""
     priority = int(match.group("priority"))
-    timestamp = datetime.fromisoformat(match.group("timestamp"))
+    try:
+        timestamp = datetime.fromisoformat(match.group("timestamp"))
+    except ValueError as err:
+        raise SyslogParseError("Invalid RFC5424 syslog timestamp") from err
     message = match.group("message")
 
     return SyslogEvent(
@@ -300,6 +343,41 @@ def parse_syslog_message(raw: bytes | str) -> SyslogEvent:
     )
 
 
+def _parse_rfc3164_match(match: re.Match[str]) -> SyslogEvent:
+    """Return a syslog event from an RFC3164-style regex match."""
+    priority = int(match.group("priority"))
+    timestamp = _parse_rfc3164_timestamp(match.group("timestamp"))
+    message = match.group("message")
+
+    return SyslogEvent(
+        priority=priority,
+        facility=FACILITY.get(priority // 8, "unknown"),
+        severity=SEVERITY.get(priority % 8, "unknown"),
+        timestamp=timestamp,
+        hostname=match.group("hostname"),
+        app_name="-",
+        proc_id="-",
+        msg_id="-",
+        structured_data="-",
+        message=message,
+        event_category=None,
+        event_text=message,
+    )
+
+
+def _parse_rfc3164_timestamp(timestamp: str) -> datetime:
+    """Parse an RFC3164 timestamp using the current year and UTC."""
+    try:
+        parsed = datetime.strptime(
+            f"{datetime.now().year} {timestamp}",
+            "%Y %b %d %H:%M:%S",
+        )
+    except ValueError as err:
+        raise SyslogParseError("Invalid RFC3164 syslog timestamp") from err
+
+    return parsed.replace(tzinfo=UTC)
+
+
 def route_syslog_datagram(
     raw: bytes,
     *,
@@ -308,7 +386,7 @@ def route_syslog_datagram(
     coordinators_by_host: Mapping[str, SyslogEventCoordinator],
 ) -> SyslogDispatch | None:
     """Parse and route a syslog datagram to a configured coordinator."""
-    coordinator = coordinators_by_host.get(source_host)
+    coordinator = syslog_coordinator_for_source(source_host, coordinators_by_host)
     if coordinator is None:
         return None
 
@@ -320,6 +398,42 @@ def route_syslog_datagram(
             event=parse_syslog_message(raw),
         ),
     )
+
+
+def syslog_coordinator_for_source(
+    source_host: str,
+    coordinators_by_host: Mapping[str, SyslogEventCoordinator],
+) -> SyslogEventCoordinator | None:
+    """Return the coordinator registered for a syslog packet source."""
+    return coordinators_by_host.get(syslog_route_key(source_host))
+
+
+def syslog_route_keys(host: str) -> set[str]:
+    """Return all route keys that should match one syslog host string."""
+    route_key = syslog_route_key(host)
+    route_keys = {host, route_key}
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return route_keys
+
+    if isinstance(address, ipaddress.IPv4Address):
+        route_keys.add(f"::ffff:{address}")
+
+    return route_keys
+
+
+def syslog_route_key(host: str) -> str:
+    """Return the canonical route key for a syslog packet source."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return str(address.ipv4_mapped)
+
+    return str(address)
 
 
 def syslog_event_state_data(event: RoutedSyslogEvent) -> dict[str, int | str]:
