@@ -149,6 +149,9 @@ Sensor entities:
   **Output current**, **Output power**, **Output apparent power**,
   **Output power factor**, **Output load**, **Output efficiency**, and
   **Output energy**.
+- **Environmental probe temperature** for AP9335T/AP9335TH sensors attached to
+  NMC universal I/O ports, plus **Environmental probe humidity** when the probe
+  reports humidity.
 - **Self-test result** and **Last self-test**.
 - **Alarm count**.
 

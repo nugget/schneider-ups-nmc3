@@ -390,6 +390,62 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.value("output_power"), 0)
         self.assertEqual(data.value("output_load"), 0.0)
 
+    def test_normalizes_uio_environmental_probes(self) -> None:
+        """Universal I/O probe rows become AP9335 environmental telemetry."""
+        probes = snmp._build_uio_environmental_probes(
+            names={"1.1": "Rack front", "2.1": "Rack rear"},
+            locations={"1.1": "Front", "2.1": "Rear"},
+            temperatures={"1.1": 23, "2.1": 25},
+            humidity={"1.1": -1, "2.1": 42},
+            comm_status={"1.1": 2, "2.1": 2},
+        )
+
+        self.assertEqual(
+            probes,
+            (
+                snmp.EnvironmentalProbe(
+                    index="1.1",
+                    name="Rack front",
+                    location="Front",
+                    connected=True,
+                    temperature=23,
+                    humidity=None,
+                ),
+                snmp.EnvironmentalProbe(
+                    index="2.1",
+                    name="Rack rear",
+                    location="Rear",
+                    connected=True,
+                    temperature=25,
+                    humidity=42,
+                ),
+            ),
+        )
+
+    def test_marks_disconnected_uio_environmental_probe_values_absent(self) -> None:
+        """Disconnected universal I/O probe rows stay present but unavailable."""
+        probes = snmp._build_uio_environmental_probes(
+            names={"1.1": "Rack front"},
+            locations={"1.1": "Front"},
+            temperatures={"1.1": 23},
+            humidity={"1.1": 42},
+            comm_status={"1.1": 3},
+        )
+
+        self.assertEqual(
+            probes,
+            (
+                snmp.EnvironmentalProbe(
+                    index="1.1",
+                    name="Rack front",
+                    location="Front",
+                    connected=False,
+                    temperature=None,
+                    humidity=None,
+                ),
+            ),
+        )
+
     def test_uses_supplied_fallbacks_when_identity_is_missing(self) -> None:
         """Missing identity still yields a stable name and unique id."""
         data = snmp.build_ups_data(

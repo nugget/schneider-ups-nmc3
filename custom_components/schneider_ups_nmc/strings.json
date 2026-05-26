@@ -190,6 +190,12 @@
       "battery_voltage": {
         "name": "Battery voltage"
       },
+      "environment_probe_humidity": {
+        "name": "{probe_name} humidity"
+      },
+      "environment_probe_temperature": {
+        "name": "{probe_name} temperature"
+      },
       "estimated_runtime": {
         "name": "Estimated runtime"
       },
