@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
 from custom_components.schneider_ups_nmc import syslog
@@ -38,6 +39,23 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertEqual(event.event_category, "System TEST")
         self.assertEqual(event.event_text, "APC: Test Syslog.")
 
+    def test_parses_rfc3164_message(self) -> None:
+        """Parse legacy RFC3164 syslog messages from known hosts."""
+        event = syslog.parse_syslog_message(
+            "<13>May 25 17:45:00 ups.example.test APC: Test Syslog."
+        )
+
+        self.assertEqual(event.priority, 13)
+        self.assertEqual(event.facility, "user")
+        self.assertEqual(event.severity, "notice")
+        self.assertEqual(event.timestamp.year, datetime.now().year)
+        self.assertEqual(event.timestamp.month, 5)
+        self.assertEqual(event.timestamp.day, 25)
+        self.assertEqual(event.hostname, "ups.example.test")
+        self.assertEqual(event.app_name, "-")
+        self.assertIsNone(event.event_category)
+        self.assertEqual(event.event_text, "APC: Test Syslog.")
+
     def test_defines_event_types_from_syslog_severities(self) -> None:
         """Expose syslog severities as Home Assistant event types."""
         self.assertEqual(
@@ -71,6 +89,23 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertIs(dispatch.coordinator, coordinator)
         self.assertEqual(dispatch.event.source_host, "192.0.2.10")
         self.assertEqual(dispatch.event.event.event_category, "System TEST")
+
+    def test_routes_ipv4_mapped_ipv6_packet_sources(self) -> None:
+        """Route IPv4 packets received by an IPv6 listener to the IPv4 host."""
+        coordinator = _FakeCoordinator(host="192.0.2.10")
+
+        dispatch = syslog.route_syslog_datagram(
+            b"<8>1 2026-05-25T01:20:40-05:00 "
+            b"ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog.",
+            source_host="::ffff:192.0.2.10",
+            source_port=514,
+            coordinators_by_host={coordinator.host: coordinator},
+        )
+
+        self.assertIsNotNone(dispatch)
+        assert dispatch is not None
+        self.assertIs(dispatch.coordinator, coordinator)
+        self.assertEqual(dispatch.event.source_host, "::ffff:192.0.2.10")
 
     def test_builds_home_assistant_event_state_data(self) -> None:
         """Build stable Home Assistant state data for a routed syslog event."""
@@ -156,6 +191,24 @@ class SyslogPushManagerTest(unittest.TestCase):
         self.assertFalse(manager.is_configured_for("0.0.0.0", 1515))
         self.assertFalse(manager.is_configured_for("127.0.0.1", 1514))
 
+    def test_records_parse_failures_from_known_sources(self) -> None:
+        """Record unparsable datagrams from configured source hosts."""
+        coordinator = _FakeCoordinator("192.0.2.10")
+        manager = syslog.SyslogPushManager(cast("HomeAssistant", object()))
+        manager._coordinators_by_host[coordinator.host] = coordinator
+
+        manager._handle_datagram(b"not syslog", "::ffff:192.0.2.10", 514)
+
+        self.assertEqual(len(coordinator.parse_failures), 1)
+        self.assertEqual(
+            coordinator.parse_failures[0],
+            syslog.RoutedSyslogParseFailure(
+                source_host="::ffff:192.0.2.10",
+                source_port=514,
+                error="Unsupported syslog message format",
+            ),
+        )
+
 
 class _FakeCoordinator:
     """Minimal coordinator for syslog routing tests."""
@@ -163,12 +216,20 @@ class _FakeCoordinator:
     def __init__(self, host: str) -> None:
         """Initialize the fake coordinator."""
         self.host = host
+        self.parse_failures: list[syslog.RoutedSyslogParseFailure] = []
 
     async def async_handle_syslog_event(
         self,
         event: object,
     ) -> None:
         """Handle a routed syslog event."""
+
+    def async_handle_syslog_parse_failure(
+        self,
+        failure: syslog.RoutedSyslogParseFailure,
+    ) -> None:
+        """Record a syslog parse failure."""
+        self.parse_failures.append(failure)
 
 
 if __name__ == "__main__":

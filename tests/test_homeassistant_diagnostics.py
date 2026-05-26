@@ -23,7 +23,11 @@ from custom_components.schneider_ups_nmc.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_3, UPSData
-from custom_components.schneider_ups_nmc.syslog import RoutedSyslogEvent, SyslogEvent
+from custom_components.schneider_ups_nmc.syslog import (
+    RoutedSyslogEvent,
+    RoutedSyslogParseFailure,
+    SyslogEvent,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -59,6 +63,12 @@ async def test_config_entry_diagnostics_redacts_secrets_and_reports_state(
         data=_ups_data(),
         last_update_success=True,
         last_syslog_event=_syslog_event(),
+        last_syslog_parse_failure=RoutedSyslogParseFailure(
+            source_host="192.0.2.10",
+            source_port=514,
+            error="Unsupported syslog message format",
+        ),
+        syslog_parse_failure_count=3,
     )
 
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
@@ -97,6 +107,14 @@ async def test_config_entry_diagnostics_redacts_secrets_and_reports_state(
         "event_text": "APC: Test Syslog.",
         "timestamp": "2026-05-25T17:45:00+00:00",
     }
+    assert diagnostics["syslog_parse_failures"] == {
+        "count": 3,
+        "last_failure": {
+            "source_host": "192.0.2.10",
+            "source_port": 514,
+            "error": "Unsupported syslog message format",
+        },
+    }
 
 
 @dataclass(frozen=True)
@@ -106,6 +124,8 @@ class _FakeCoordinator:
     data: UPSData
     last_update_success: bool
     last_syslog_event: RoutedSyslogEvent | None
+    last_syslog_parse_failure: RoutedSyslogParseFailure | None
+    syslog_parse_failure_count: int
 
 
 def _ups_data() -> UPSData:

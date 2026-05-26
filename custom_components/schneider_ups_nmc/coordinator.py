@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -40,9 +41,11 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
-    from .syslog import RoutedSyslogEvent
+    from .syslog import RoutedSyslogEvent, RoutedSyslogParseFailure
 
 _LOGGER = logging.getLogger(__name__)
+SYSLOG_EVENT_DIAGNOSTIC_TTL = timedelta(hours=24)
+SYSLOG_PARSE_FAILURE_ISSUE = "syslog_parse_failure"
 
 
 class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
@@ -58,7 +61,10 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
         )
         self.host = entry.data[CONF_HOST]
         self.web_url = entry.options.get(CONF_WEB_URL, entry.data.get(CONF_WEB_URL))
-        self.last_syslog_event: RoutedSyslogEvent | None = None
+        self._last_syslog_event: RoutedSyslogEvent | None = None
+        self._last_syslog_event_received_at: datetime | None = None
+        self.last_syslog_parse_failure: RoutedSyslogParseFailure | None = None
+        self.syslog_parse_failure_count = 0
         self._syslog_listeners: set[Callable[[RoutedSyslogEvent], None]] = set()
 
         scan_interval = entry.options.get(
@@ -83,7 +89,9 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
 
     async def async_handle_syslog_event(self, event: RoutedSyslogEvent) -> None:
         """Handle a pushed syslog event from the NMC."""
-        self.last_syslog_event = event
+        self._last_syslog_event = event
+        self._last_syslog_event_received_at = datetime.now(UTC)
+        self._delete_syslog_parse_failure_issue()
         for listener in tuple(self._syslog_listeners):
             try:
                 listener(event)
@@ -93,6 +101,54 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
                     exc_info=True,
                 )
         await self.async_request_refresh()
+
+    @callback
+    def async_handle_syslog_parse_failure(
+        self,
+        failure: RoutedSyslogParseFailure,
+    ) -> None:
+        """Record an unparsable syslog datagram from the NMC."""
+        self.syslog_parse_failure_count += 1
+        self.last_syslog_parse_failure = failure
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            self._syslog_parse_failure_issue_id(),
+            is_fixable=False,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=SYSLOG_PARSE_FAILURE_ISSUE,
+            translation_placeholders={
+                "error": failure.error,
+                "name": self.config_entry.title,
+                "source": f"{failure.source_host}:{failure.source_port}",
+            },
+        )
+
+    @property
+    def last_syslog_event(self) -> RoutedSyslogEvent | None:
+        """Return the latest routed syslog event while it is diagnostically fresh."""
+        if self._last_syslog_event is None:
+            return None
+        if self._last_syslog_event_received_at is None:
+            return self._last_syslog_event
+        if (
+            datetime.now(UTC) - self._last_syslog_event_received_at
+            <= SYSLOG_EVENT_DIAGNOSTIC_TTL
+        ):
+            return self._last_syslog_event
+
+        self._last_syslog_event = None
+        self._last_syslog_event_received_at = None
+        return None
+
+    def _delete_syslog_parse_failure_issue(self) -> None:
+        """Delete stale syslog parse failure repair issues."""
+        ir.async_delete_issue(self.hass, DOMAIN, self._syslog_parse_failure_issue_id())
+
+    def _syslog_parse_failure_issue_id(self) -> str:
+        """Return the per-entry syslog parse failure repair issue ID."""
+        return f"{SYSLOG_PARSE_FAILURE_ISSUE}_{self.config_entry.entry_id}"
 
     @callback
     def async_add_syslog_listener(
