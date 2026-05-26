@@ -433,7 +433,7 @@ def _normalize_web_url_input(data: dict[str, Any]) -> dict[str, str]:
         return {CONF_WEB_URL: "invalid_web_url"}
 
     if web_url is None:
-        data[CONF_WEB_URL] = None
+        data.pop(CONF_WEB_URL, None)
     else:
         data[CONF_WEB_URL] = web_url
 

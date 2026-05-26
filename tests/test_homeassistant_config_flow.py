@@ -563,6 +563,58 @@ async def test_reconfigure_flow_replaces_options_web_url_override(
     reload_mock.assert_called_once_with(entry.entry_id)
 
 
+async def test_reconfigure_flow_clears_web_url_without_storing_none(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Remove a cleared web URL from entry data instead of storing None."""
+    _FakeConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
+    reload_mock = Mock()
+    monkeypatch.setattr(hass.config_entries, "async_schedule_reload", reload_mock)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="as1234567890",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+            CONF_WEB_URL: "https://data.example.test",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_WEB_URL: "",
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "private"},
+    )
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "reconfigure_successful"
+    assert CONF_WEB_URL not in entry.data
+    reload_mock.assert_called_once_with(entry.entry_id)
+
+
 async def test_reconfigure_flow_rejects_a_different_ups(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
