@@ -15,11 +15,11 @@
       "reconfigure": {
         "title": "Reconfigure UPS network management card",
         "data": {
-          "host": "Host",
-          "port": "Port",
-          "snmp_version": "SNMP version",
-          "scan_interval": "Scan interval",
-          "web_url": "Web UI URL"
+          "host": "[%key:component::schneider_ups_nmc::config::step::user::data::host%]",
+          "port": "[%key:component::schneider_ups_nmc::config::step::user::data::port%]",
+          "snmp_version": "[%key:component::schneider_ups_nmc::config::step::user::data::snmp_version%]",
+          "scan_interval": "[%key:component::schneider_ups_nmc::config::step::user::data::scan_interval%]",
+          "web_url": "[%key:component::schneider_ups_nmc::config::step::user::data::web_url%]"
         }
       },
       "snmpv2c": {
