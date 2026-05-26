@@ -150,10 +150,6 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
         self._last_syslog_event_received_at = None
         return None
 
-    def _delete_syslog_parse_failure_issue(self) -> None:
-        """Delete stale syslog parse failure repair issues."""
-        ir.async_delete_issue(self.hass, DOMAIN, self._syslog_parse_failure_issue_id())
-
     def _syslog_parse_failure_issue_id(self) -> str:
         """Return the per-entry syslog parse failure repair issue ID."""
         return f"{SYSLOG_PARSE_FAILURE_ISSUE}_{self.config_entry.entry_id}"
