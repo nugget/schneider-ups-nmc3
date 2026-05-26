@@ -315,6 +315,12 @@ estimated energy from sampled power readings.
 metadata, runs the full local gate, creates a signed `v`-prefixed tag, pushes
 the branch and tag, and creates a GitHub Release for HACS.
 
+After the release exists on GitHub, replace the generated release notes with a
+narrative release summary before announcing it. Use the strongest prior release
+notes as the tone model, explain why the release matters to Home Assistant
+users, group changes by user impact, and keep PR links or the full changelog as
+supporting detail rather than the whole story.
+
 ## License
 
 APC UPS NMC is released under the [Apache License 2.0](LICENSE), matching Home
