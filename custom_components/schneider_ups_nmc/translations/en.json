@@ -68,6 +68,7 @@
       }
     },
     "error": {
+      "invalid_syslog_bind_address": "Syslog bind address must be an IPv4 or IPv6 address.",
       "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments."
     }
   },

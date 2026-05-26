@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -234,12 +235,7 @@ class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         if self.source == config_entries.SOURCE_RECONFIGURE:
             self._abort_if_unique_id_mismatch(reason="wrong_device")
         else:
-            self._abort_if_unique_id_configured(
-                updates={
-                    CONF_HOST: data[CONF_HOST],
-                    CONF_PORT: data[CONF_PORT],
-                }
-            )
+            self._abort_if_unique_id_configured()
         data["_title"] = ups_data.name
 
         return {}
@@ -287,7 +283,7 @@ class SchneiderUPSNMCOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             options = dict(user_input)
-            errors = _normalize_web_url_input(options)
+            errors = _normalize_options_input(options)
             if not errors:
                 return self.async_create_entry(title="", data=options)
 
@@ -443,6 +439,11 @@ def _normalize_web_url_input(data: dict[str, Any]) -> dict[str, str]:
     return {}
 
 
+def _normalize_options_input(data: dict[str, Any]) -> dict[str, str]:
+    """Normalize options-flow input and return field-level errors."""
+    return _normalize_web_url_input(data) | _normalize_syslog_bind_address_input(data)
+
+
 def _normalize_web_url(value: Any) -> str | None:
     """Return a normalized absolute HTTP(S) URL for the NMC web UI."""
     if value is None:
@@ -459,6 +460,20 @@ def _normalize_web_url(value: Any) -> str | None:
         raise ValueError
 
     return web_url
+
+
+def _normalize_syslog_bind_address_input(data: dict[str, Any]) -> dict[str, str]:
+    """Normalize syslog bind addresses in options flow input."""
+    if CONF_SYSLOG_BIND_ADDRESS not in data:
+        return {}
+
+    bind_address = str(data.get(CONF_SYSLOG_BIND_ADDRESS, "")).strip()
+    try:
+        data[CONF_SYSLOG_BIND_ADDRESS] = str(ip_address(bind_address))
+    except ValueError:
+        return {CONF_SYSLOG_BIND_ADDRESS: "invalid_syslog_bind_address"}
+
+    return {}
 
 
 def _required(
