@@ -380,8 +380,8 @@ class BuildUPSDataTest(unittest.TestCase):
 
         self.assertEqual(mac_address, "00:c0:b7:12:34:56")
 
-    def test_selects_first_valid_mac_address_without_ethernet_type(self) -> None:
-        """IF-MIB selection falls back when interface type is not available."""
+    def test_requires_ethernet_type_for_mac_address(self) -> None:
+        """IF-MIB selection rejects physical addresses without ethernet type."""
         mac_address = snmp._select_interface_mac_address(
             {},
             {
@@ -390,7 +390,64 @@ class BuildUPSDataTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(mac_address, "28:29:86:aa:bb:cc")
+        self.assertEqual(mac_address, None)
+
+    def test_async_get_mac_address_caches_successful_resolution(self) -> None:
+        """Successful MAC discovery is cached across refreshes."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that records IF-MIB walks."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.walk_count = 0
+
+            async def _async_walk_column(self, column_oid: str) -> dict[str, object]:
+                """Return fake IF-MIB column values."""
+                self.walk_count += 1
+                if column_oid == snmp.IF_TYPE_OID:
+                    return {"1": snmp.ETHERNET_CSMACD_IF_TYPE}
+                return {"1": bytes.fromhex("00c0b7123456")}
+
+        client = FakeSNMPClient()
+
+        first_mac_address = asyncio.run(client.async_get_mac_address())
+        second_mac_address = asyncio.run(client.async_get_mac_address())
+
+        self.assertEqual(first_mac_address, "00:c0:b7:12:34:56")
+        self.assertEqual(second_mac_address, "00:c0:b7:12:34:56")
+        self.assertEqual(client.walk_count, 2)
+
+        client.close()
+        self.assertEqual(client._mac_address, None)
+
+    def test_async_get_mac_address_retries_missing_resolution(self) -> None:
+        """Missing MAC discovery is not cached."""
+
+        class FakeSNMPClient(snmp.SNMPClient):
+            """SNMP client that records IF-MIB walks without ethernet rows."""
+
+            def __init__(self) -> None:
+                """Initialize the fake client."""
+                super().__init__(snmp.SNMPConnectionConfig(host="192.0.2.10"))
+                self.walk_count = 0
+
+            async def _async_walk_column(self, column_oid: str) -> dict[str, object]:
+                """Return fake IF-MIB column values."""
+                self.walk_count += 1
+                if column_oid == snmp.IF_TYPE_OID:
+                    return {}
+                return {"1": bytes.fromhex("00c0b7123456")}
+
+        client = FakeSNMPClient()
+
+        first_mac_address = asyncio.run(client.async_get_mac_address())
+        second_mac_address = asyncio.run(client.async_get_mac_address())
+
+        self.assertEqual(first_mac_address, None)
+        self.assertEqual(second_mac_address, None)
+        self.assertEqual(client.walk_count, 4)
 
     def test_first_result_bind_preserves_flat_var_bind(self) -> None:
         """Flat PySNMP GETNEXT bindings are already `(oid, value)` pairs."""

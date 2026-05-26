@@ -240,6 +240,7 @@ class SNMPClient:
         self.config = config
         self._closed = False
         self._engine_lock: asyncio.Lock | None = None
+        self._mac_address: str | None = None
         self._snmp_engine: Any | None = None
 
     async def async_get_data(self) -> UPSData:
@@ -259,9 +260,18 @@ class SNMPClient:
 
     async def async_get_mac_address(self) -> str | None:
         """Fetch the management card MAC address from IF-MIB."""
+        if self._mac_address is not None:
+            return self._mac_address
+
         interface_types = await self._async_walk_column(IF_TYPE_OID)
         physical_addresses = await self._async_walk_column(IF_PHYS_ADDRESS_OID)
-        return _select_interface_mac_address(interface_types, physical_addresses)
+        mac_address = _select_interface_mac_address(
+            interface_types,
+            physical_addresses,
+        )
+        if mac_address is not None:
+            self._mac_address = mac_address
+        return mac_address
 
     async def async_get(self, oids: Sequence[str]) -> dict[str, Any]:
         """Fetch OIDs from the configured SNMP agent."""
@@ -392,6 +402,7 @@ class SNMPClient:
     def close(self) -> None:
         """Close the underlying SNMP dispatcher."""
         self._closed = True
+        self._mac_address = None
         snmp_engine = self._snmp_engine
         self._snmp_engine = None
 
@@ -687,19 +698,15 @@ def _select_interface_mac_address(
     physical_addresses: Mapping[str, Any],
 ) -> str | None:
     """Return the best NMC MAC address from IF-MIB table values."""
-    fallback_mac: str | None = None
     for row_index in sorted(physical_addresses, key=_row_sort_key):
         mac_address = _format_mac_address(physical_addresses[row_index])
         if mac_address is None:
             continue
 
-        if fallback_mac is None:
-            fallback_mac = mac_address
-
         if _int(interface_types.get(row_index)) == ETHERNET_CSMACD_IF_TYPE:
             return mac_address
 
-    return fallback_mac
+    return None
 
 
 def _first_result_bind(result_binds: Sequence[Any]) -> Any | None:
