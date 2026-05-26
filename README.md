@@ -6,20 +6,43 @@
 [![Release](https://img.shields.io/github/v/release/nugget/schneider-ups-nmc?style=flat-square&label=release)](https://github.com/nugget/schneider-ups-nmc/releases)
 [![License](https://img.shields.io/github/license/nugget/schneider-ups-nmc?style=flat-square)](https://github.com/nugget/schneider-ups-nmc/blob/main/LICENSE)
 
-Home Assistant custom integration for APC by Schneider Electric UPS units with
-network management cards.
+APC UPS NMC is a local-first Home Assistant custom integration for APC by
+Schneider Electric UPS units with Network Management Cards.
 
-This integration is intended for HACS installation. It uses local SNMP polling
-as the source of truth for UPS telemetry and can optionally listen for local
-syslog push events from one or more NMC cards. Current support is developed and
-tested against NMC3 hardware while the repository and Home Assistant domain leave
-room for additional Schneider Electric/APC Network Management Card generations.
-The integration is read-only and exposes UPS identity, battery, input, output,
-load, energy, self-test, replacement, and alarm telemetry from the RFC1628
-UPS-MIB plus Schneider Electric APC PowerNet MIB fields where useful.
+The integration uses SNMP polling as the source of truth for UPS telemetry and
+can optionally listen for local syslog push events from one or more NMC cards.
+Current support is developed and tested against NMC3 hardware while the
+repository and Home Assistant domain leave room for additional Schneider
+Electric/APC Network Management Card generations.
+
+The integration is read-only. It exposes UPS identity, battery, input, output,
+load, energy, self-test, replacement, alarm, and syslog event data from the
+RFC1628 UPS-MIB plus Schneider Electric APC PowerNet MIB fields where useful.
+
+## Supported Devices
+
+Known supported hardware:
+
+- APC by Schneider Electric UPS units with an NMC3 card and SNMP enabled.
+
+Expected but not yet validated:
+
+- Other APC by Schneider Electric NMC generations that expose the same RFC1628
+  and PowerNet MIB values.
+
+Not currently supported:
+
+- UPS devices that only expose USB, Modbus, cloud APIs, or serial protocols.
+- Multi-phase or multi-output modeling beyond the first input/output table row.
+
+The first telemetry pass queries line index `1` for input and output table
+values. That matches common single-phase UPS deployments. Multi-phase and
+multi-output UPS support should grow from real NMC walks so the entity model
+matches what the card actually reports.
 
 ## Requirements
 
+- Home Assistant with HACS installed.
 - An APC by Schneider Electric UPS with a supported Network Management Card.
 - SNMP enabled on the NMC web or CLI interface.
 - Either SNMPv2c read-only community access or SNMPv3 credentials.
@@ -33,7 +56,10 @@ the NMC access control list to your Home Assistant host.
 2. Install **APC UPS NMC**.
 3. Restart Home Assistant.
 4. Go to **Settings > Devices & services > Add integration**.
-5. Search for **APC UPS NMC** and enter the NMC host and SNMP credentials.
+5. Search for **APC UPS NMC**.
+6. Enter the NMC host, SNMP port, SNMP version, scan interval, and optional web
+   UI URL.
+7. Enter the SNMP credentials on the next setup page.
 
 The setup flow validates the SNMP settings before creating an entry. SNMP
 community strings and SNMPv3 passphrases are entered as password fields in Home
@@ -45,32 +71,144 @@ host or IP address. The integration uses the UPS identity learned from SNMP to
 avoid duplicate entries and to protect reconfiguration from accidentally
 pointing an existing Home Assistant device at a different UPS.
 
+## Configuration
+
+Setup fields:
+
+- **Host**: DNS name or IP address of the NMC SNMP interface.
+- **Port**: SNMP UDP port. The default is `161`.
+- **SNMP version**: `SNMPv2c` or `SNMPv3`.
+- **Scan interval**: polling interval in seconds. The default is `60`.
+- **Web UI URL**: optional HTTP(S) URL used for the Home Assistant device
+  configuration link.
+
+SNMPv2c credential fields:
+
+- **Community**: read-only SNMP community string.
+
+SNMPv3 credential fields:
+
+- **Username**
+- **Authentication protocol**: SHA, MD5, or no authentication.
+- **Authentication passphrase**
+- **Privacy protocol**: AES, DES, or no privacy.
+- **Privacy passphrase**
+
+SNMPv3 privacy requires authentication. The setup flow reports a field error if
+the selected protocol combination is invalid.
+
 After setup, use **Reconfigure** from the integration entry to change the NMC
-host, SNMP port, SNMP version, or SNMP credentials without deleting and
-re-adding the device. Polling interval and syslog listener settings live in the
-entry options.
+host, SNMP port, SNMP version, SNMP credentials, scan interval, or web UI URL
+without deleting and re-adding the device.
 
-## Current entities
+Options fields:
 
-- UPS and battery status, battery charge, runtime, voltage, current,
-  temperature, pack count, replacement status, replacement dates, and battery
-  SKU diagnostics.
-- Input voltage, frequency, current, power, line fault counter, and last
-  transfer reason.
-- Output source, voltage, frequency, current, real power, apparent power, load,
-  power factor, efficiency, and total energy.
-- Self-test result and last self-test date.
-- Active alarm count.
-- Binary sensors for on battery, battery low, battery needs replacing, and alarm
-  present.
-- A syslog event entity whose event type is the pushed syslog severity and whose
-  event data includes the NMC message, category, facility, timestamp, and packet
-  source.
+- **Scan interval**
+- **Enable syslog listener**
+- **Syslog bind address**
+- **Syslog UDP port**
+- **Web UI URL**
 
-Entities whose backing OID is not exposed by a particular UPS model or firmware
-report unavailable rather than presenting a fresh but ambiguous unknown value.
+The polling interval and syslog listener settings can be adjusted from options
+without replacing the SNMP connection identity stored in the config entry.
 
-## Energy dashboard
+## Data Updates
+
+SNMP polling is the source of truth for all telemetry entities. Every poll
+builds one coherent UPS snapshot through Home Assistant's data update
+coordinator, and entities report unavailable when their backing value is absent
+or the NMC cannot be reached.
+
+Syslog is an optional local push companion. When a configured NMC sends a
+supported syslog event, Home Assistant fires the integration's syslog event
+entity and immediately requests a fresh SNMP poll. The syslog event itself is
+useful for automations and troubleshooting, but it does not replace SNMP as the
+authoritative state source.
+
+The syslog parser accepts the RFC5424-style format emitted by NMC3 test/events
+and a legacy RFC3164-style format. RFC3164 messages do not include a timezone,
+so the integration stores them using the current year and UTC.
+
+## Entities
+
+Sensor entities:
+
+- **Battery status**: enum such as `normal`, `low`, `depleted`, `fault`, or
+  `no_battery_present`.
+- **UPS status**: enum such as `online`, `on_battery`, `eco_mode`, `self_test`,
+  and other PowerNet UPS states.
+- **Battery charge**, **Estimated runtime**, **Seconds on battery**.
+- **Battery voltage**, **Battery current**, **Battery temperature**.
+- **Battery replacement status**, **Battery pack count**, **Battery SKUs**,
+  **Battery last replaced**, and **Battery recommended replacement**.
+- **Input voltage**, **Input frequency**, **Input current**, **Input power**,
+  **Input line faults**, and **Last input transfer reason**.
+- **Output source**, **Output voltage**, **Output frequency**,
+  **Output current**, **Output power**, **Output apparent power**,
+  **Output power factor**, **Output load**, **Output efficiency**, and
+  **Output energy**.
+- **Self-test result** and **Last self-test**.
+- **Alarm count**.
+
+Binary sensor entities:
+
+- **On battery**
+- **Battery low**
+- **Battery needs replacing**
+- **Alarm present**
+
+Event entities:
+
+- **Syslog event**: event type is the syslog severity. Event data includes the
+  NMC message, category when available, facility, timestamp, and packet source.
+
+Several diagnostic or low-use entities are disabled by default to keep the
+entity registry focused. Entities whose backing OID is not exposed by a
+particular UPS model or firmware report unavailable rather than presenting a
+fresh but ambiguous unknown value.
+
+## Actions
+
+This integration does not currently register Home Assistant service actions. It
+is read-only and reports UPS/NMC state for dashboards, automations, diagnostics,
+and energy monitoring.
+
+## Example Use Cases
+
+Notify when protected equipment is running on battery:
+
+```yaml
+automation:
+  - alias: UPS on battery
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.rack_ups_on_battery
+        to: "on"
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          message: Rack UPS is running on battery.
+```
+
+React to a pushed NMC syslog event:
+
+```yaml
+automation:
+  - alias: UPS warning syslog event
+    triggers:
+      - trigger: state
+        entity_id: event.rack_ups_syslog_event
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.to_state.attributes.event_type == 'warning' }}"
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: UPS warning
+          message: "{{ trigger.to_state.attributes.message }}"
+```
+
+## Energy Dashboard
 
 The **Output energy** sensor is reported in `kWh` with Home Assistant's energy
 device class and `total_increasing` state class. When your NMC exposes that
@@ -87,12 +225,26 @@ the **Output energy** sensor will be unavailable, but the **Output power** senso
 can still be used with Home Assistant's Integration helper to estimate energy
 from sampled power readings.
 
-## Notes
+## Syslog Push Events
 
-The first telemetry pass queries line index `1` for input and output table
-values. That matches common single-phase UPS deployments. Multi-phase and
-multi-output UPS support should grow from real NMC walks so the entity model
-matches what the card actually reports.
+The integration opens a shared UDP syslog listener on port `1514` by default.
+Configure one or more NMC cards to send syslog events to the Home Assistant host
+on that port. Events are routed to configured UPS entries by packet source IP.
+If Home Assistant listens on IPv6 and the OS reports an IPv4 sender as an
+IPv4-mapped IPv6 address, the integration still routes the event to the matching
+IPv4 NMC entry.
+
+Because Home Assistant only needs one local syslog socket for all configured UPS
+entries, every syslog-enabled entry should use the same listener settings. The
+listener can be disabled or moved to another bind address and UDP port from the
+integration options.
+
+If the listener cannot bind its configured address and port, if two
+syslog-enabled entries request different listener settings, or if a configured
+NMC sends syslog messages that cannot be parsed, the integration raises a Home
+Assistant Repair issue with the settings or source that need attention.
+
+## Device Registry
 
 When the NMC exposes a physical network interface through IF-MIB, the
 integration registers the NMC MAC address as a Home Assistant device
@@ -103,22 +255,60 @@ The Home Assistant device registry entry also includes the NMC web
 configuration URL derived from the configured SNMP host, plus manufacturer,
 model, serial number, and firmware details when the NMC exposes them.
 
-The integration opens a shared UDP syslog listener on port `1514`. Configure
-one or more NMC cards to send syslog events to the Home Assistant host on that
-port. Events are routed to configured UPS entries by packet source IP and used
-to fire the entry's syslog event entity and request an immediate SNMP refresh
-while SNMP polling remains the source of truth for telemetry.
+## Diagnostics
 
-The syslog listener can be disabled or moved to another bind address and UDP
-port from the integration options. Because Home Assistant only needs one local
-syslog socket for all configured UPS entries, every syslog-enabled entry should
-use the same listener settings.
+Diagnostics include redacted config entry data, current device identity, update
+success state, available telemetry keys, the latest routed syslog event while it
+is fresh, and syslog parse-failure counts. SNMP community strings and SNMPv3
+credential fields are redacted before diagnostics are returned to Home
+Assistant.
 
-If the listener cannot bind its configured address and port, or if two
-syslog-enabled entries request different listener settings, the integration
-raises a Home Assistant Repair issue with the settings that need attention.
+The latest syslog event in diagnostics is retained for 24 hours. It is intended
+as a troubleshooting hint, not a durable event log.
+
+## Troubleshooting
+
+**The setup flow says it cannot connect.**
+Verify the NMC host, SNMP port, SNMP version, credentials, NMC access control
+list, and network path from Home Assistant to the NMC. Setup validates the SNMP
+connection before it stores the config entry.
+
+**An entity is unavailable.**
+The NMC may not expose that OID for your UPS model or firmware, or the most
+recent SNMP refresh may have failed. Check diagnostics and Home Assistant logs
+for the integration.
+
+**The syslog listener cannot start.**
+Another process may already be using the configured UDP port, or multiple UPS
+entries may have different syslog listener settings. Use the Repair issue or
+the integration options to align the bind address and UDP port.
+
+**Syslog messages could not be parsed.**
+Check that the NMC is configured to send syslog in English and is using a
+supported format. The integration currently accepts the NMC3 RFC5424-style
+format and a legacy RFC3164-style format.
+
+**Output energy is unavailable.**
+Some UPS/NMC firmware does not expose the PowerNet output energy counter. Use
+the **Output power** sensor with Home Assistant's Integration helper if you want
+estimated energy from sampled power readings.
+
+## Removal
+
+1. In Home Assistant, go to **Settings > Devices & services**.
+2. Open **APC UPS NMC**.
+3. Delete each config entry you no longer want.
+4. Remove or disable the matching syslog destination on the NMC if you enabled
+   syslog push events.
+5. Optionally uninstall the integration from HACS and restart Home Assistant.
+
+## Release Engineering
+
+`just release <version>` is the canonical release path. It updates release
+metadata, runs the full local gate, creates a signed `v`-prefixed tag, pushes
+the branch and tag, and creates a GitHub Release for HACS.
 
 ## License
 
-APC UPS NMC is released under the [Apache License 2.0](LICENSE),
-matching Home Assistant's source license.
+APC UPS NMC is released under the [Apache License 2.0](LICENSE), matching Home
+Assistant's source license.

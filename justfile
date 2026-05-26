@@ -12,6 +12,7 @@ release-prepare version:
     manifest_version="${requested_version#v}"
     tag="v$manifest_version"
     manifest='custom_components/schneider_ups_nmc/manifest.json'
+    pyproject='pyproject.toml'
 
     if [[ ! "$manifest_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
       echo "release version must look like 0.1.0, v0.1.0, 0.1.0-rc.1, or v0.1.0-rc.1" >&2
@@ -33,23 +34,39 @@ release-prepare version:
       exit 1
     fi
 
-    uv run python - "$manifest_version" "$manifest" <<'PY'
+    uv run python - "$manifest_version" "$manifest" "$pyproject" <<'PY'
     import json
     import pathlib
     import sys
+    import tomllib
 
     manifest_version = sys.argv[1]
     manifest = pathlib.Path(sys.argv[2])
+    pyproject = pathlib.Path(sys.argv[3])
+
     data = json.loads(manifest.read_text(encoding="utf-8"))
     data["version"] = manifest_version
     manifest.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+    pyproject_text = pyproject.read_text(encoding="utf-8")
+    parsed = tomllib.loads(pyproject_text)
+    current_project_version = parsed["project"]["version"]
+    pyproject.write_text(
+        pyproject_text.replace(
+            f'version = "{current_project_version}"',
+            f'version = "{manifest_version}"',
+            1,
+        ),
+        encoding="utf-8",
+    )
     PY
 
+    uv lock
     just ci
-    git add "$manifest"
+    git add "$manifest" "$pyproject" uv.lock
     git commit -m "chore: release $tag"
 
 release-publish version:

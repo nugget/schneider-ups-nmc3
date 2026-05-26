@@ -10,16 +10,17 @@ room for additional Schneider Electric/APC Network Management Card generations.
 
 ## Highlights
 
-- SNMPv2c and SNMPv3 setup through the Home Assistant UI.
+- SNMPv2c and SNMPv3 setup and reconfiguration through the Home Assistant UI.
 - UPS identity, battery, input, output, load, self-test, alarm, replacement, and
   energy telemetry.
 - Home Assistant Energy dashboard-friendly output energy and power metadata.
-- Optional shared UDP syslog listener for local push events.
+- Optional shared UDP syslog listener for RFC5424-style and RFC3164-style local
+  push events.
 - Multiple UPS/NMC cards as distinct Home Assistant devices.
-- Reconfigure flow for host, port, SNMP version, and credentials.
 - Device registry metadata, including serial, firmware, web configuration URL,
   and NMC MAC address when exposed.
-- Redacted diagnostics and Repair issues for syslog listener problems.
+- Redacted diagnostics and Repair issues for syslog listener and parse-failure
+  problems.
 
 See the [project README](https://github.com/nugget/schneider-ups-nmc#readme) for
 installation, configuration, and operating notes.
