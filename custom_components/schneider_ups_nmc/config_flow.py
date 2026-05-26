@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -32,6 +33,7 @@ from .const import (
     CONF_SYSLOG_ENABLED,
     CONF_SYSLOG_PORT,
     CONF_USERNAME,
+    CONF_WEB_URL,
     DEFAULT_PORT,
     DEFAULT_RETRIES,
     DEFAULT_SCAN_INTERVAL,
@@ -98,7 +100,9 @@ RECONFIGURE_REPLACED_DATA_KEYS = {
     CONF_SCAN_INTERVAL,
     CONF_SNMP_VERSION,
     CONF_USERNAME,
+    CONF_WEB_URL,
 }
+WEB_URL_SCHEMES = {"http", "https"}
 
 
 class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
@@ -120,7 +124,16 @@ class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._base_input = user_input
+            base_input = dict(user_input)
+            errors = _normalize_web_url_input(base_input)
+            if errors:
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=_base_schema(base_input),
+                    errors=errors,
+                )
+
+            self._base_input = base_input
             if user_input[CONF_SNMP_VERSION] == SNMP_VERSION_3:
                 return await self.async_step_snmpv3()
             return await self.async_step_snmpv2c()
@@ -138,14 +151,23 @@ class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         entry = self._get_reconfigure_entry()
 
         if user_input is not None:
-            self._base_input = user_input
+            base_input = dict(user_input)
+            errors = _normalize_web_url_input(base_input)
+            if errors:
+                return self.async_show_form(
+                    step_id="reconfigure",
+                    data_schema=_base_schema(base_input),
+                    errors=errors,
+                )
+
+            self._base_input = base_input
             if user_input[CONF_SNMP_VERSION] == SNMP_VERSION_3:
                 return await self.async_step_snmpv3()
             return await self.async_step_snmpv2c()
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_base_schema(entry.data),
+            data_schema=_base_schema(_entry_effective_data(entry)),
         )
 
     async def async_step_snmpv2c(
@@ -228,6 +250,13 @@ class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         entry_data = _entry_data(data)
         if self.source == config_entries.SOURCE_RECONFIGURE:
             entry = self._get_reconfigure_entry()
+            if CONF_WEB_URL in entry_data:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    title=title,
+                    data=_reconfigured_entry_data(entry.data, entry_data),
+                    options=_options_without_web_url(entry.options),
+                )
             return self.async_update_reload_and_abort(
                 entry,
                 title=title,
@@ -254,28 +283,26 @@ class SchneiderUPSNMCOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage integration options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+        errors: dict[str, str] = {}
 
-        scan_interval = self._config_entry.options.get(
-            CONF_SCAN_INTERVAL,
-            self._config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        if user_input is not None:
+            options = dict(user_input)
+            errors = _normalize_web_url_input(options)
+            if not errors:
+                return self.async_create_entry(title="", data=options)
+
+        defaults = (
+            dict(self._config_entry.data)
+            | dict(self._config_entry.options)
+            | dict(user_input or {})
         )
-        syslog_enabled = self._config_entry.options.get(
-            CONF_SYSLOG_ENABLED,
-            self._config_entry.data.get(CONF_SYSLOG_ENABLED, DEFAULT_SYSLOG_ENABLED),
-        )
-        syslog_bind_address = self._config_entry.options.get(
+        scan_interval = defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        syslog_enabled = defaults.get(CONF_SYSLOG_ENABLED, DEFAULT_SYSLOG_ENABLED)
+        syslog_bind_address = defaults.get(
             CONF_SYSLOG_BIND_ADDRESS,
-            self._config_entry.data.get(
-                CONF_SYSLOG_BIND_ADDRESS,
-                DEFAULT_SYSLOG_BIND_ADDRESS,
-            ),
+            DEFAULT_SYSLOG_BIND_ADDRESS,
         )
-        syslog_port = self._config_entry.options.get(
-            CONF_SYSLOG_PORT,
-            self._config_entry.data.get(CONF_SYSLOG_PORT, DEFAULT_SYSLOG_PORT),
-        )
+        syslog_port = defaults.get(CONF_SYSLOG_PORT, DEFAULT_SYSLOG_PORT)
 
         return self.async_show_form(
             step_id="init",
@@ -306,8 +333,10 @@ class SchneiderUPSNMCOptionsFlow(config_entries.OptionsFlow):
                             mode=NumberSelectorMode.BOX,
                         )
                     ),
+                    _optional_web_url(defaults): _url_selector(),
                 }
             ),
+            errors=errors,
         )
 
 
@@ -339,6 +368,7 @@ def _base_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
                     unit_of_measurement="seconds",
                 )
             ),
+            _optional_web_url(defaults): _url_selector(),
         }
     )
 
@@ -390,6 +420,47 @@ def _password_selector() -> TextSelector:
     return TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 
 
+def _url_selector() -> TextSelector:
+    """Return a URL-style text selector."""
+    return TextSelector(TextSelectorConfig(type=TextSelectorType.URL))
+
+
+def _normalize_web_url_input(data: dict[str, Any]) -> dict[str, str]:
+    """Normalize optional NMC web UI URLs in config flow input."""
+    if CONF_WEB_URL not in data:
+        return {}
+
+    try:
+        web_url = _normalize_web_url(data.get(CONF_WEB_URL))
+    except ValueError:
+        return {CONF_WEB_URL: "invalid_web_url"}
+
+    if web_url is None:
+        data[CONF_WEB_URL] = None
+    else:
+        data[CONF_WEB_URL] = web_url
+
+    return {}
+
+
+def _normalize_web_url(value: Any) -> str | None:
+    """Return a normalized absolute HTTP(S) URL for the NMC web UI."""
+    if value is None:
+        return None
+
+    web_url = str(value).strip()
+    if not web_url:
+        return None
+
+    parsed = urlparse(web_url)
+    if parsed.scheme not in WEB_URL_SCHEMES or not parsed.netloc:
+        raise ValueError
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ValueError
+
+    return web_url
+
+
 def _required(
     key: str,
     defaults: Mapping[str, Any],
@@ -410,9 +481,21 @@ def _optional(key: str, defaults: Mapping[str, Any]) -> Any:
     return vol.Optional(key)
 
 
+def _optional_web_url(defaults: Mapping[str, Any]) -> Any:
+    """Return an optional web URL marker with a useful default."""
+    if defaults.get(CONF_WEB_URL):
+        return vol.Optional(CONF_WEB_URL, default=defaults[CONF_WEB_URL])
+    return vol.Optional(CONF_WEB_URL)
+
+
 def _entry_data(data: Mapping[str, Any]) -> dict[str, Any]:
     """Return config entry data without flow-private values."""
     return {key: value for key, value in data.items() if key != "_title"}
+
+
+def _entry_effective_data(config_entry: config_entries.ConfigEntry) -> dict[str, Any]:
+    """Return entry data with options-level overrides applied."""
+    return dict(config_entry.data) | dict(config_entry.options)
 
 
 def _reconfigured_entry_data(
@@ -426,6 +509,13 @@ def _reconfigured_entry_data(
         if key not in RECONFIGURE_REPLACED_DATA_KEYS and key != "_title"
     }
     return preserved_data | dict(updated_data)
+
+
+def _options_without_web_url(existing_options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return options with any web URL override removed."""
+    return {
+        key: value for key, value in existing_options.items() if key != CONF_WEB_URL
+    }
 
 
 def _config_from_data(data: dict[str, Any]) -> SNMPConnectionConfig:

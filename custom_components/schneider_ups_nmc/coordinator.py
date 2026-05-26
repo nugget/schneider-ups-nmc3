@@ -18,6 +18,7 @@ from .const import (
     CONF_PRIVACY_PROTOCOL,
     CONF_SNMP_VERSION,
     CONF_USERNAME,
+    CONF_WEB_URL,
     DEFAULT_PORT,
     DEFAULT_RETRIES,
     DEFAULT_SCAN_INTERVAL,
@@ -56,6 +57,7 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
             f"{entry.data[CONF_HOST]}:{entry.data.get(CONF_PORT, DEFAULT_PORT)}"
         )
         self.host = entry.data[CONF_HOST]
+        self.web_url = entry.options.get(CONF_WEB_URL, entry.data.get(CONF_WEB_URL))
         self.last_syslog_event: RoutedSyslogEvent | None = None
         self._syslog_listeners: set[Callable[[RoutedSyslogEvent], None]] = set()
 

@@ -8,7 +8,8 @@
           "host": "Host",
           "port": "Port",
           "snmp_version": "SNMP version",
-          "scan_interval": "Scan interval"
+          "scan_interval": "Scan interval",
+          "web_url": "Web UI URL"
         }
       },
       "reconfigure": {
@@ -17,7 +18,8 @@
           "host": "Host",
           "port": "Port",
           "snmp_version": "SNMP version",
-          "scan_interval": "Scan interval"
+          "scan_interval": "Scan interval",
+          "web_url": "Web UI URL"
         }
       },
       "snmpv2c": {
@@ -40,6 +42,7 @@
     "error": {
       "cannot_connect": "Could not query the UPS over SNMP.",
       "invalid_snmp_configuration": "SNMP settings are incomplete or invalid.",
+      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments.",
       "missing_auth_key": "Authentication passphrase is required.",
       "missing_privacy_key": "Privacy passphrase is required.",
       "missing_username": "Username is required.",
@@ -59,9 +62,13 @@
           "scan_interval": "Scan interval",
           "syslog_enabled": "Enable syslog listener",
           "syslog_bind_address": "Syslog bind address",
-          "syslog_port": "Syslog UDP port"
+          "syslog_port": "Syslog UDP port",
+          "web_url": "Web UI URL"
         }
       }
+    },
+    "error": {
+      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments."
     }
   },
   "issues": {
