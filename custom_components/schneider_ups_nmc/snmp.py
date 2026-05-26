@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import warnings
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
@@ -290,7 +289,6 @@ class SNMPClient:
             ContextData,
             ObjectIdentity,
             ObjectType,
-            UdpTransportTarget,
             get_cmd,
         )
 
@@ -301,11 +299,7 @@ class SNMPClient:
             error_indication, error_status, error_index, result_binds = await get_cmd(
                 await self._async_engine(),
                 auth_data,
-                await UdpTransportTarget.create(
-                    (self.config.host, self.config.port),
-                    timeout=self.config.timeout,
-                    retries=self.config.retries,
-                ),
+                await self._async_transport_target(),
                 ContextData(),
                 *var_binds,
                 lookupMib=False,
@@ -344,16 +338,11 @@ class SNMPClient:
             ContextData,
             ObjectIdentity,
             ObjectType,
-            UdpTransportTarget,
             next_cmd,
         )
 
         auth_data = self._auth_data()
-        transport_target = await UdpTransportTarget.create(
-            (self.config.host, self.config.port),
-            timeout=self.config.timeout,
-            retries=self.config.retries,
-        )
+        transport_target = await self._async_transport_target()
         current_oid = column_oid
         values: dict[str, Any] = {}
 
@@ -406,6 +395,21 @@ class SNMPClient:
         """Raise when a lifecycle owner uses the client after teardown."""
         if self._closed:
             raise SNMPError("SNMP client is closed")
+
+    async def _async_transport_target(self) -> Any:
+        """Create a PySNMP UDP target for one SNMP operation."""
+        from pysnmp.hlapi.v3arch.asyncio import (  # pylint: disable=import-outside-toplevel
+            UdpTransportTarget,
+        )
+
+        # Target creation resolves hostnames. PySNMP's command-generator LCD
+        # caches the actual UDP transport on the SNMP engine, so avoid retaining
+        # a resolved target across refreshes while still reusing the socket.
+        return await UdpTransportTarget.create(
+            (self.config.host, self.config.port),
+            timeout=self.config.timeout,
+            retries=self.config.retries,
+        )
 
     def close(self) -> None:
         """Close the underlying SNMP dispatcher."""
@@ -468,7 +472,9 @@ class SNMPClient:
         )
 
         if self.config.version == SNMP_VERSION_2C:
-            return CommunityData(self.config.community or "public", mpModel=1)
+            if not self.config.community:
+                raise SNMPConfigurationError("SNMPv2c community is required")
+            return CommunityData(self.config.community, mpModel=1)
 
         if self.config.version != SNMP_VERSION_3:
             raise SNMPConfigurationError(
@@ -528,19 +534,7 @@ def _close_snmp_engine(snmp_engine: Any) -> None:
     if callable(close_dispatcher):
         close_dispatcher()
 
-    transport_dispatcher = getattr(snmp_engine, "transport_dispatcher", None)
-    if transport_dispatcher is None:
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="transportDispatcher is deprecated",
-                category=DeprecationWarning,
-            )
-            transport_dispatcher = getattr(
-                snmp_engine,
-                "transportDispatcher",
-                None,
-            )
+    transport_dispatcher = _transport_dispatcher(snmp_engine)
     if transport_dispatcher is not None:
         close_dispatcher = getattr(
             transport_dispatcher,
@@ -555,6 +549,14 @@ def _close_snmp_engine(snmp_engine: Any) -> None:
             )
         if callable(close_dispatcher):
             close_dispatcher()
+
+
+def _transport_dispatcher(snmp_engine: Any) -> Any | None:
+    """Return the PySNMP transport dispatcher without global warning filters."""
+    try:
+        return snmp_engine.transport_dispatcher
+    except AttributeError:
+        return getattr(snmp_engine, "transportDispatcher", None)
 
 
 def build_ups_data(
