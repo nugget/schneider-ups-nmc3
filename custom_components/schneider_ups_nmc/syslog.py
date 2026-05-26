@@ -8,7 +8,7 @@ import logging
 import re
 import socket
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -321,7 +321,10 @@ def parse_syslog_message(raw: bytes | str) -> SyslogEvent:
 def _parse_rfc5424_match(match: re.Match[str]) -> SyslogEvent:
     """Return a syslog event from an RFC5424-style regex match."""
     priority = int(match.group("priority"))
-    timestamp = datetime.fromisoformat(match.group("timestamp"))
+    try:
+        timestamp = datetime.fromisoformat(match.group("timestamp"))
+    except ValueError as err:
+        raise SyslogParseError("Invalid RFC5424 syslog timestamp") from err
     message = match.group("message")
 
     return SyslogEvent(
@@ -363,11 +366,16 @@ def _parse_rfc3164_match(match: re.Match[str]) -> SyslogEvent:
 
 
 def _parse_rfc3164_timestamp(timestamp: str) -> datetime:
-    """Parse an RFC3164 timestamp using the current year."""
-    return datetime.strptime(
-        f"{datetime.now().year} {timestamp}",
-        "%Y %b %d %H:%M:%S",
-    )
+    """Parse an RFC3164 timestamp using the current year and UTC."""
+    try:
+        parsed = datetime.strptime(
+            f"{datetime.now().year} {timestamp}",
+            "%Y %b %d %H:%M:%S",
+        )
+    except ValueError as err:
+        raise SyslogParseError("Invalid RFC3164 syslog timestamp") from err
+
+    return parsed.replace(tzinfo=UTC)
 
 
 def route_syslog_datagram(

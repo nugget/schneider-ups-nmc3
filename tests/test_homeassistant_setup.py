@@ -120,6 +120,31 @@ def test_coordinator_creates_syslog_parse_failure_repair_issue(
     coordinator.close()
 
 
+def test_coordinator_formats_ipv6_syslog_parse_failure_source(
+    hass: HomeAssistant,
+) -> None:
+    """Bracket IPv6 sources in syslog parse failure Repair placeholders."""
+    coordinator = coordinator_module.SchneiderUPSNMCCoordinator(hass, _mock_entry())
+
+    coordinator.async_handle_syslog_parse_failure(
+        RoutedSyslogParseFailure(
+            source_host="::ffff:192.0.2.10",
+            source_port=514,
+            error="Unsupported syslog message format",
+        )
+    )
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN,
+        f"{coordinator_module.SYSLOG_PARSE_FAILURE_ISSUE}_{ENTRY_ID}",
+    )
+    assert issue is not None
+    assert issue.translation_placeholders is not None
+    assert issue.translation_placeholders["source"] == "[::ffff:192.0.2.10]:514"
+
+    coordinator.close()
+
+
 async def test_config_entry_sets_up_entities_and_unloads(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,

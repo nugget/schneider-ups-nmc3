@@ -223,7 +223,7 @@ def _delete_syslog_issues(
     hass: HomeAssistant,
     entry: SchneiderUPSNMCConfigEntry,
 ) -> None:
-    """Delete stale syslog listener repair issues for a config entry."""
+    """Delete stale syslog repair issues for a config entry."""
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_CONFLICT_ISSUE)
     _delete_syslog_issue(hass, entry, SYSLOG_LISTENER_FAILED_ISSUE)
     _delete_syslog_issue(hass, entry, SYSLOG_PARSE_FAILURE_ISSUE)

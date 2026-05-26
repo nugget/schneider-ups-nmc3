@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -121,7 +122,7 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
             translation_placeholders={
                 "error": failure.error,
                 "name": self.config_entry.title,
-                "source": f"{failure.source_host}:{failure.source_port}",
+                "source": _format_host_port(failure.source_host, failure.source_port),
             },
         )
 
@@ -184,3 +185,16 @@ def _config_from_entry(entry: ConfigEntry) -> SNMPConnectionConfig:
         timeout=DEFAULT_TIMEOUT,
         retries=DEFAULT_RETRIES,
     )
+
+
+def _format_host_port(host: str, port: int) -> str:
+    """Return host and port text that is unambiguous for IPv6 addresses."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return f"{host}:{port}"
+
+    if isinstance(address, ipaddress.IPv6Address):
+        return f"[{host}]:{port}"
+
+    return f"{host}:{port}"

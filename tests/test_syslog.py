@@ -41,6 +41,7 @@ class ParseSyslogMessageTest(unittest.TestCase):
 
     def test_parses_rfc3164_message(self) -> None:
         """Parse legacy RFC3164 syslog messages from known hosts."""
+        current_year = datetime.now().year
         event = syslog.parse_syslog_message(
             "<13>May 25 17:45:00 ups.example.test APC: Test Syslog."
         )
@@ -48,13 +49,39 @@ class ParseSyslogMessageTest(unittest.TestCase):
         self.assertEqual(event.priority, 13)
         self.assertEqual(event.facility, "user")
         self.assertEqual(event.severity, "notice")
-        self.assertEqual(event.timestamp.year, datetime.now().year)
+        self.assertEqual(event.timestamp.year, current_year)
         self.assertEqual(event.timestamp.month, 5)
         self.assertEqual(event.timestamp.day, 25)
+        self.assertIsNotNone(event.timestamp.tzinfo)
+        self.assertEqual(
+            event.timestamp.isoformat(),
+            f"{current_year}-05-25T17:45:00+00:00",
+        )
         self.assertEqual(event.hostname, "ups.example.test")
         self.assertEqual(event.app_name, "-")
         self.assertIsNone(event.event_category)
         self.assertEqual(event.event_text, "APC: Test Syslog.")
+
+    def test_rejects_invalid_rfc5424_timestamp_as_parse_error(self) -> None:
+        """Wrap invalid RFC5424 timestamps in the syslog parse exception."""
+        with self.assertRaisesRegex(
+            syslog.SyslogParseError,
+            "Invalid RFC5424 syslog timestamp",
+        ):
+            syslog.parse_syslog_message(
+                "<8>1 not-a-timestamp "
+                "ups.example.test su_v2.5.5.1 System TEST - APC: Test Syslog."
+            )
+
+    def test_rejects_invalid_rfc3164_timestamp_as_parse_error(self) -> None:
+        """Wrap invalid RFC3164 timestamps in the syslog parse exception."""
+        with self.assertRaisesRegex(
+            syslog.SyslogParseError,
+            "Invalid RFC3164 syslog timestamp",
+        ):
+            syslog.parse_syslog_message(
+                "<13>Foo 25 17:45:00 ups.example.test APC: Test Syslog."
+            )
 
     def test_defines_event_types_from_syslog_severities(self) -> None:
         """Expose syslog severities as Home Assistant event types."""
