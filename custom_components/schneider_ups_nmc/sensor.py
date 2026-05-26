@@ -23,6 +23,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
+from homeassistant.core import callback
 
 from .entity import SchneiderUPSNMCEntity
 from .snmp import (
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
 
     from . import SchneiderUPSNMCConfigEntry
     from .coordinator import SchneiderUPSNMCCoordinator
-    from .snmp import UPSData
+    from .snmp import EnvironmentalProbe, UPSData
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -338,9 +339,41 @@ async def async_setup_entry(
 ) -> None:
     """Set up APC UPS NMC sensors."""
     coordinator: SchneiderUPSNMCCoordinator = entry.runtime_data
+    environmental_entities: set[tuple[str, str]] = set()
+
     async_add_entities(
         SchneiderUPSNMCSensorEntity(coordinator, description)
         for description in SENSOR_DESCRIPTIONS
+    )
+
+    @callback
+    def add_environmental_probe_entities() -> None:
+        """Add environmental probe sensors discovered from coordinator data."""
+        if coordinator.data is None:
+            return
+
+        entities: list[SchneiderUPSNMCEnvironmentalProbeSensorEntity] = []
+        for probe in coordinator.data.environmental_probes:
+            for sensor_kind in _environmental_sensor_kinds(probe):
+                key = (probe.index, sensor_kind)
+                if key in environmental_entities:
+                    continue
+
+                environmental_entities.add(key)
+                entities.append(
+                    SchneiderUPSNMCEnvironmentalProbeSensorEntity(
+                        coordinator,
+                        probe,
+                        sensor_kind,
+                    )
+                )
+
+        if entities:
+            async_add_entities(entities)
+
+    add_environmental_probe_entities()
+    entry.async_on_unload(
+        coordinator.async_add_listener(add_environmental_probe_entities)
     )
 
 
@@ -365,3 +398,105 @@ class SchneiderUPSNMCSensorEntity(SchneiderUPSNMCEntity, SensorEntity):
             return None
 
         return self.entity_description.value_fn(self.coordinator.data)
+
+
+class SchneiderUPSNMCEnvironmentalProbeSensorEntity(
+    SchneiderUPSNMCEntity,
+    SensorEntity,
+):
+    """An APC UPS NMC environmental probe sensor."""
+
+    def __init__(
+        self,
+        coordinator: SchneiderUPSNMCCoordinator,
+        probe: EnvironmentalProbe,
+        sensor_kind: str,
+    ) -> None:
+        """Initialize the environmental probe sensor."""
+        self._probe_index = probe.index
+        self._sensor_kind = sensor_kind
+        description = _environmental_probe_description(probe, sensor_kind)
+        super().__init__(coordinator, description)
+        self._attr_translation_placeholders = {
+            "probe_name": _environmental_probe_label(probe),
+        }
+
+    @property
+    def available(self) -> bool:
+        """Return whether the environmental probe has a fresh value."""
+        return super().available and self.native_value is not None
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the environmental probe reading."""
+        probe = self._probe()
+        if probe is None or not probe.connected:
+            return None
+
+        if self._sensor_kind == "temperature":
+            return probe.temperature
+        if self._sensor_kind == "humidity":
+            return probe.humidity
+
+        return None
+
+    def _probe(self) -> EnvironmentalProbe | None:
+        """Return the latest environmental probe data for this entity."""
+        if self.coordinator.data is None:
+            return None
+
+        for probe in self.coordinator.data.environmental_probes:
+            if probe.index == self._probe_index:
+                return probe
+
+        return None
+
+
+def _environmental_sensor_kinds(probe: EnvironmentalProbe) -> tuple[str, ...]:
+    """Return environmental sensor kinds that have values for one probe."""
+    kinds: list[str] = []
+    if probe.temperature is not None:
+        kinds.append("temperature")
+    if probe.humidity is not None:
+        kinds.append("humidity")
+    return tuple(kinds)
+
+
+def _environmental_probe_description(
+    probe: EnvironmentalProbe,
+    sensor_kind: str,
+) -> SensorEntityDescription:
+    """Return an entity description for one environmental probe reading."""
+    key = f"environment_probe_{_environmental_probe_key(probe.index)}_{sensor_kind}"
+    if sensor_kind == "temperature":
+        return SensorEntityDescription(
+            key=key,
+            translation_key="environment_probe_temperature",
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+
+    return SensorEntityDescription(
+        key=key,
+        translation_key="environment_probe_humidity",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+    )
+
+
+def _environmental_probe_label(probe: EnvironmentalProbe) -> str:
+    """Return the user-facing label for one environmental probe."""
+    return probe.name or probe.location or f"Probe {probe.index}"
+
+
+def _environmental_probe_key(index: str) -> str:
+    """Return a stable entity key fragment for a probe table index."""
+    return "_".join(
+        part
+        for part in ("".join(char if char.isalnum() else "_" for char in index)).split(
+            "_"
+        )
+        if part
+    )

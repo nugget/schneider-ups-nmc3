@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -36,6 +37,8 @@ DATE_FORMATS = (
     "%Y/%m/%d",
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class SNMPError(Exception):
     """Raised when an SNMP query fails."""
@@ -63,6 +66,18 @@ class SNMPConnectionConfig:
 
 
 @dataclass(frozen=True)
+class EnvironmentalProbe:
+    """Normalized NMC environmental probe telemetry."""
+
+    index: str
+    name: str | None
+    location: str | None
+    connected: bool
+    temperature: int | None
+    humidity: int | None
+
+
+@dataclass(frozen=True)
 class UPSData:
     """Normalized UPS telemetry and identity."""
 
@@ -75,6 +90,7 @@ class UPSData:
     agent_version: str | None
     mac_address: str | None
     unique_id: str
+    environmental_probes: tuple[EnvironmentalProbe, ...] = ()
 
     def value(self, key: str, default: Any = None) -> Any:
         """Return a normalized value by key."""
@@ -149,10 +165,18 @@ POWERNET_OIDS: dict[str, str] = {
 OIDS: dict[str, str] = {**RFC1628_OIDS, **POWERNET_OIDS}
 
 GET_BATCH_SIZE = 12
+# AP9335T/AP9335TH probes are exposed through the PowerNet Universal
+# Input/Output sensor status table.
+UIO_SENSOR_STATUS_NAME_OID = "1.3.6.1.4.1.318.1.1.25.1.2.1.3"
+UIO_SENSOR_STATUS_LOCATION_OID = "1.3.6.1.4.1.318.1.1.25.1.2.1.4"
+UIO_SENSOR_STATUS_TEMPERATURE_C_OID = "1.3.6.1.4.1.318.1.1.25.1.2.1.6"
+UIO_SENSOR_STATUS_HUMIDITY_OID = "1.3.6.1.4.1.318.1.1.25.1.2.1.7"
+UIO_SENSOR_STATUS_COMM_STATUS_OID = "1.3.6.1.4.1.318.1.1.25.1.2.1.10"
+UIO_SENSOR_COMM_STATUS_OK = 2
 IF_TYPE_OID = "1.3.6.1.2.1.2.2.1.3"
 IF_PHYS_ADDRESS_OID = "1.3.6.1.2.1.2.2.1.6"
 ETHERNET_CSMACD_IF_TYPE = 6
-MAX_INTERFACE_ROWS = 64
+MAX_TABLE_ROWS = 64
 MAC_ADDRESS_OCTETS = 6
 VAR_BIND_PARTS = 2
 MAC_PAIR_RE = re.compile(r"[0-9A-Fa-f]{2}")
@@ -327,6 +351,13 @@ class SNMPClient:
             raw_by_key["mac_address"] = await self.async_get_mac_address()
         except SNMPError:
             raw_by_key["mac_address"] = None
+        try:
+            raw_by_key[
+                "environmental_probes"
+            ] = await self.async_get_environmental_probes()
+        except SNMPError as err:
+            _LOGGER.debug("Could not query APC UPS NMC environmental probes: %s", err)
+            raw_by_key["environmental_probes"] = ()
 
         return build_ups_data(
             raw_by_key,
@@ -351,6 +382,33 @@ class SNMPClient:
         if mac_address is not None:
             self._mac_address = mac_address
         return mac_address
+
+    async def async_get_environmental_probes(
+        self,
+    ) -> tuple[EnvironmentalProbe, ...]:
+        """Fetch NMC universal I/O environmental probe readings."""
+        self._raise_if_closed()
+        names = await self._async_walk_column_values(UIO_SENSOR_STATUS_NAME_OID)
+        self._raise_if_closed()
+        locations = await self._async_walk_column_values(UIO_SENSOR_STATUS_LOCATION_OID)
+        self._raise_if_closed()
+        temperatures = await self._async_walk_column_values(
+            UIO_SENSOR_STATUS_TEMPERATURE_C_OID
+        )
+        self._raise_if_closed()
+        humidity = await self._async_walk_column_values(UIO_SENSOR_STATUS_HUMIDITY_OID)
+        self._raise_if_closed()
+        comm_status = await self._async_walk_column_values(
+            UIO_SENSOR_STATUS_COMM_STATUS_OID
+        )
+
+        return _build_uio_environmental_probes(
+            names,
+            locations,
+            temperatures,
+            humidity,
+            comm_status,
+        )
 
     async def async_get(self, oids: Sequence[str]) -> dict[str, Any]:
         """Fetch OIDs from the configured SNMP agent."""
@@ -423,7 +481,7 @@ class SNMPClient:
         current_oid = column_oid
         values: dict[str, Any] = {}
 
-        for _ in range(MAX_INTERFACE_ROWS):
+        for _ in range(MAX_TABLE_ROWS):
             try:
                 (
                     error_indication,
@@ -467,6 +525,14 @@ class SNMPClient:
             current_oid = result_oid
 
         return values
+
+    async def _async_walk_column_values(self, column_oid: str) -> dict[str, Any]:
+        """Walk one SNMP table column and coerce values to simple types."""
+        raw_values = await self._async_walk_column(column_oid)
+        return {
+            row_index: _coerce_snmp_value(value)
+            for row_index, value in raw_values.items()
+        }
 
     def _raise_if_closed(self) -> None:
         """Raise when a lifecycle owner uses the client after teardown."""
@@ -752,7 +818,51 @@ def build_ups_data(
         agent_version=agent_version,
         mac_address=mac_address,
         unique_id=_slug(unique_id),
+        environmental_probes=tuple(raw.get("environmental_probes") or ()),
     )
+
+
+def _build_uio_environmental_probes(
+    names: Mapping[str, Any],
+    locations: Mapping[str, Any],
+    temperatures: Mapping[str, Any],
+    humidity: Mapping[str, Any],
+    comm_status: Mapping[str, Any],
+) -> tuple[EnvironmentalProbe, ...]:
+    """Return normalized AP9335-style universal I/O environmental probes."""
+    row_indexes = set(names) | set(locations) | set(temperatures) | set(humidity)
+    row_indexes |= set(comm_status)
+    probes: list[EnvironmentalProbe] = []
+
+    for row_index in sorted(row_indexes, key=_row_sort_key):
+        connected = _int(comm_status.get(row_index)) == UIO_SENSOR_COMM_STATUS_OK
+        temperature = _environmental_reading(temperatures.get(row_index))
+        relative_humidity = _environmental_reading(humidity.get(row_index))
+        if not connected:
+            temperature = None
+            relative_humidity = None
+
+        if (
+            not connected
+            and _text(names.get(row_index)) is None
+            and _text(locations.get(row_index)) is None
+            and temperature is None
+            and relative_humidity is None
+        ):
+            continue
+
+        probes.append(
+            EnvironmentalProbe(
+                index=row_index,
+                name=_text(names.get(row_index)),
+                location=_text(locations.get(row_index)),
+                connected=connected,
+                temperature=temperature,
+                humidity=relative_humidity,
+            )
+        )
+
+    return tuple(probes)
 
 
 def _coerce_snmp_value(value: Any) -> int | str | None:
@@ -928,6 +1038,15 @@ def _tenths(value: Any) -> float | None:
         return None
 
     return integer / 10
+
+
+def _environmental_reading(value: Any) -> int | None:
+    """Return an environmental sensor reading when the NMC marks it valid."""
+    integer = _int(value)
+    if integer is None or integer < 0:
+        return None
+
+    return integer
 
 
 def _hundredths(value: Any) -> float | None:
