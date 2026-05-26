@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -464,7 +464,7 @@ class SchneiderUPSNMCEnvironmentalProbeSensorEntity(
             return
 
         self._attr_translation_placeholders = placeholders
-        cast("dict[str, Any]", self.__dict__).pop("name", None)
+        vars(self).pop("name", None)
         self._cached_friendly_name = None
 
 
