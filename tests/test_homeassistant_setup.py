@@ -29,7 +29,7 @@ from custom_components.schneider_ups_nmc.const import (
     CONF_WEB_URL,
     DOMAIN,
 )
-from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, UPSData
+from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, SNMPError, UPSData
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -75,6 +75,8 @@ async def test_config_entry_sets_up_entities_and_unloads(
 
     assert entry.state is ConfigEntryState.LOADED
     assert _FakeSNMPClient.instances
+    assert entry.runtime_data.client is _FakeSNMPClient.instances[0]
+    assert ENTRY_ID not in hass.data.get(DOMAIN, {})
     entity_id = er.async_get(hass).async_get_entity_id(
         "sensor",
         DOMAIN,
@@ -113,6 +115,27 @@ async def test_config_entry_sets_up_entities_and_unloads(
 
     assert entry.state is ConfigEntryState.NOT_LOADED
     assert _FakeSNMPClient.instances[0].closed
+    assert not hasattr(entry, "runtime_data")
+
+
+async def test_config_entry_does_not_store_runtime_data_on_refresh_failure(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not retain a failed coordinator on setup retry paths."""
+    _FailingSNMPClient.instances.clear()
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _FailingSNMPClient)
+
+    entry = _mock_entry(options={CONF_SYSLOG_ENABLED: False})
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert _FailingSNMPClient.instances[0].closed
+    assert not hasattr(entry, "runtime_data")
+    assert ENTRY_ID not in hass.data.get(DOMAIN, {})
 
 
 async def test_config_entry_marks_missing_binary_value_unavailable(
@@ -261,6 +284,25 @@ async def test_syslog_listener_conflict_creates_repair_issue(
     }
 
 
+async def test_update_listener_uses_config_entries_reload(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use Home Assistant's config-entry reload helper for options changes."""
+    reloads: list[str] = []
+
+    async def async_reload(entry_id: str) -> None:
+        """Record the requested config-entry reload."""
+        reloads.append(entry_id)
+
+    monkeypatch.setattr(hass.config_entries, "async_reload", async_reload)
+    entry = _mock_entry()
+
+    await integration._async_update_listener(hass, entry)
+
+    assert reloads == [ENTRY_ID]
+
+
 def _mock_entry(
     *,
     options: Mapping[str, Any] | None = None,
@@ -357,6 +399,16 @@ class _SparseSNMPClient(_FakeSNMPClient):
             mac_address="00:c0:b7:12:34:56",
             unique_id=ENTRY_UNIQUE_ID,
         )
+
+
+class _FailingSNMPClient(_FakeSNMPClient):
+    """SNMP client fake that fails during the first refresh."""
+
+    instances: ClassVar[list[_FailingSNMPClient]] = []
+
+    async def async_get_data(self) -> UPSData:
+        """Raise a representative SNMP failure."""
+        raise SNMPError("timed out")
 
 
 class _FailingSyslogManager:

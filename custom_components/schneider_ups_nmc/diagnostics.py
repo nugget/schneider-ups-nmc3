@@ -11,13 +11,13 @@ from .const import (
     CONF_COMMUNITY,
     CONF_PRIVACY_KEY,
     CONF_USERNAME,
-    DOMAIN,
 )
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+    from .coordinator import SchneiderUPSNMCCoordinator
     from .syslog import RoutedSyslogEvent
 
 TO_REDACT = {
@@ -29,10 +29,10 @@ TO_REDACT = {
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry
+    _hass: HomeAssistant, entry: ConfigEntry[SchneiderUPSNMCCoordinator]
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     data = coordinator.data
 
     return {
