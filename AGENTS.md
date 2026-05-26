@@ -187,10 +187,12 @@ incomplete.
   either `0.1.0` or `v0.1.0` as input and normalize the two release surfaces.
 - Every release gets a narrative GitHub release-note pass after the automated
   release is created. Do not leave GitHub's generated "What's Changed" list as
-  the final release copy. Use the strongest prior release notes as the tone
-  model, explain the release theme and user impact, group related changes into
-  readable sections, and keep PR links or the full changelog as supporting
-  detail.
+  the final release copy. Start the body with exactly one top-level `#` heading
+  that describes the scope and spirit of the release instead of repeating the
+  tag. Let that heading set the tone; this is prose, and a little personality is
+  better than anodyne metadata. Explain the release theme and user impact, group
+  related changes into readable sections, and keep PR links or the full
+  changelog as supporting detail.
 - Do not hardcode release-only behavior in integration source; keep version and
   packaging metadata in manifest/release automation.
 

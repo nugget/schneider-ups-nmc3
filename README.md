@@ -316,10 +316,12 @@ metadata, runs the full local gate, creates a signed `v`-prefixed tag, pushes
 the branch and tag, and creates a GitHub Release for HACS.
 
 After the release exists on GitHub, replace the generated release notes with a
-narrative release summary before announcing it. Use the strongest prior release
-notes as the tone model, explain why the release matters to Home Assistant
-users, group changes by user impact, and keep PR links or the full changelog as
-supporting detail rather than the whole story.
+narrative release summary before announcing it. Start with a single top-level
+`#` heading that describes the scope and spirit of the release rather than
+repeating the tag. Let that heading set the tone; personality is welcome when it
+helps the release feel written by humans. Explain why the release matters to
+Home Assistant users, group changes by user impact, and keep PR links or the
+full changelog as supporting detail rather than the whole story.
 
 ## License
 
