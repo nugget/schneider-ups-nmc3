@@ -102,7 +102,7 @@ class BuildUPSDataTest(unittest.TestCase):
         )
 
         self.assertEqual(data.mac_address, "00:c0:b7:12:34:56")
-        self.assertEqual(data.value("mac_address"), "00:c0:b7:12:34:56")
+        self.assertNotIn("mac_address", data.values)
 
     def test_snmpv2c_missing_community_is_configuration_error(self) -> None:
         """Missing local SNMPv2c credentials produce a configuration error."""
@@ -353,6 +353,23 @@ class BuildUPSDataTest(unittest.TestCase):
         self.assertEqual(data.value("output_efficiency"), 96.1)
         self.assertEqual(data.value("output_energy"), 18302.51)
         self.assertEqual(data.value("self_test_result"), "ok")
+        self.assertEqual(data.value("self_test_last_date"), date(2026, 5, 14))
+
+    def test_parses_international_date_formats(self) -> None:
+        """NMC date strings can follow non-US display locale formats."""
+        data = snmp.build_ups_data(
+            {
+                "battery_last_replace_date_raw": "24/07/2022",
+                "battery_recommended_replace_date_raw": "2027/07/24",
+                "self_test_last_date_raw": "14/05/26",
+            }
+        )
+
+        self.assertEqual(data.value("battery_last_replace_date"), date(2022, 7, 24))
+        self.assertEqual(
+            data.value("battery_recommended_replace_date"),
+            date(2027, 7, 24),
+        )
         self.assertEqual(data.value("self_test_last_date"), date(2026, 5, 14))
 
     def test_preserves_zero_powernet_values(self) -> None:
