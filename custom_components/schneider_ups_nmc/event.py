@@ -41,8 +41,13 @@ async def async_setup_entry(
 class SchneiderUPSNMCSyslogEventEntity(SchneiderUPSNMCEntity, EventEntity):
     """An APC UPS NMC syslog event entity."""
 
-    _attr_event_types: ClassVar[list[str]] = list(SYSLOG_EVENT_TYPES)
+    _event_types: ClassVar[tuple[str, ...]] = SYSLOG_EVENT_TYPES
     entity_description: EventEntityDescription
+
+    @property
+    def event_types(self) -> list[str]:
+        """Return the syslog severities that can trigger this event entity."""
+        return list(self._event_types)
 
     async def async_added_to_hass(self) -> None:
         """Register for pushed syslog events."""

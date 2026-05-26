@@ -21,6 +21,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 import custom_components.schneider_ups_nmc as integration
 import custom_components.schneider_ups_nmc.coordinator as coordinator_module
 import custom_components.schneider_ups_nmc.entity as entity_module
+import custom_components.schneider_ups_nmc.event as event_module
 from custom_components.schneider_ups_nmc.const import (
     CONF_COMMUNITY,
     CONF_SNMP_VERSION,
@@ -86,6 +87,27 @@ def test_coordinator_expires_stale_syslog_diagnostic_event(
 
     assert coordinator.last_syslog_event is None
     assert coordinator._last_syslog_event is None
+
+    coordinator.close()
+
+
+def test_syslog_event_types_are_not_shared_mutable_state(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Return HA event types without exposing mutable class-level state."""
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _FakeSNMPClient)
+    coordinator = coordinator_module.SchneiderUPSNMCCoordinator(hass, _mock_entry())
+    entity = event_module.SchneiderUPSNMCSyslogEventEntity(
+        coordinator,
+        event_module.SYSLOG_EVENT_DESCRIPTION,
+    )
+
+    event_types = entity.event_types
+    event_types.append("custom")
+
+    assert event_types != entity.event_types
+    assert tuple(entity.event_types) == event_module.SYSLOG_EVENT_TYPES
 
     coordinator.close()
 
@@ -222,6 +244,44 @@ async def test_config_entry_does_not_store_runtime_data_on_refresh_failure(
     assert _FailingSNMPClient.instances[0].closed
     assert not hasattr(entry, "runtime_data")
     assert ENTRY_ID not in hass.data.get(DOMAIN, {})
+
+
+async def test_config_entry_unloads_after_partial_setup_failure(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unload cleanly when setup fails after runtime data is assigned."""
+    _FakeSNMPClient.instances.clear()
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _FakeSNMPClient)
+
+    async def async_forward_entry_setups(*_args: object) -> None:
+        """Simulate a platform setup failure."""
+        raise RuntimeError("platform setup failed")
+
+    async def async_unload_platforms(*_args: object) -> bool:
+        """Simulate Home Assistant unloading any partially created platforms."""
+        return True
+
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        async_forward_entry_setups,
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_unload_platforms",
+        async_unload_platforms,
+    )
+
+    entry = _mock_entry(options={CONF_SYSLOG_ENABLED: False})
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert _FakeSNMPClient.instances[0].closed
+    assert await integration.async_unload_entry(hass, entry)
 
 
 async def test_config_entry_marks_missing_binary_value_unavailable(
