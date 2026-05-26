@@ -177,12 +177,50 @@ async def test_config_flow_duplicate_manual_add_does_not_rewrite_existing_entry(
     assert _FakeConfigFlowSNMPClient.instances[0].closed
 
 
+@pytest.mark.parametrize("web_url", ["", "   ", None])
+def test_normalize_web_url_treats_blank_values_as_absent(web_url: str | None) -> None:
+    """Treat empty web URL input as no override."""
+    assert config_flow_module._normalize_web_url(web_url) is None
+
+
+@pytest.mark.parametrize(
+    ("web_url", "expected"),
+    [
+        ("http://192.0.2.10", "http://192.0.2.10"),
+        ("https://192.0.2.10:443", "https://192.0.2.10:443"),
+        ("https://192.0.2.10:443/path", "https://192.0.2.10:443/path"),
+        (
+            "https://192.0.2.10:443/path?query=1",
+            "https://192.0.2.10:443/path?query=1",
+        ),
+        (
+            "https://192.0.2.10:8443/?just=query",
+            "https://192.0.2.10:8443/?just=query",
+        ),
+        (
+            "https://192.0.2.10:443;sessionid=abc",
+            "https://192.0.2.10:443;sessionid=abc",
+        ),
+        ("  https://example.com  ", "https://example.com"),
+    ],
+)
+def test_normalize_web_url_accepts_supported_forms(
+    web_url: str,
+    expected: str,
+) -> None:
+    """Accept absolute HTTP(S) web UI URLs and preserve deep-link components."""
+    assert config_flow_module._normalize_web_url(web_url) == expected
+
+
 @pytest.mark.parametrize(
     "web_url",
     [
         "ftp://ups.example.test",
         "https://user:pass@ups.example.test",
         "https://ups.example.test/#settings",
+        "//ups.example.test",
+        "https://",
+        "not a url",
     ],
 )
 async def test_config_flow_rejects_invalid_web_url(
@@ -560,6 +598,66 @@ async def test_reconfigure_flow_replaces_options_web_url_override(
     assert entry.data[CONF_WEB_URL] == "https://reconfigured.example.test"
     assert CONF_WEB_URL not in entry.options
     assert entry.options[CONF_SYSLOG_ENABLED] is False
+    reload_mock.assert_called_once_with(entry.entry_id)
+
+
+async def test_reconfigure_flow_clears_web_url_without_storing_none(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Remove a cleared web URL from entry data instead of storing None."""
+    _FakeConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
+    reload_mock = Mock()
+    monkeypatch.setattr(hass.config_entries, "async_schedule_reload", reload_mock)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="as1234567890",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+            CONF_WEB_URL: "https://data.example.test",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_WEB_URL: "",
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "snmpv2c"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "private"},
+    )
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "reconfigure_successful"
+    assert CONF_WEB_URL not in entry.data
     reload_mock.assert_called_once_with(entry.entry_id)
 
 

@@ -80,7 +80,8 @@ Setup fields:
 - **SNMP version**: `SNMPv2c` or `SNMPv3`.
 - **Scan interval**: polling interval in seconds. The default is `60`.
 - **Web UI URL**: optional HTTP(S) URL used for the Home Assistant device
-  configuration link.
+  configuration link. Paths, query strings, and path parameters are allowed for
+  NMC deep links; URL fragments and embedded credentials are rejected.
 
 SNMPv2c credential fields:
 
@@ -277,6 +278,12 @@ connection before it stores the config entry.
 The NMC may not expose that OID for your UPS model or firmware, or the most
 recent SNMP refresh may have failed. Check diagnostics and Home Assistant logs
 for the integration.
+
+**A battery or self-test date looks wrong.**
+Some NMC firmware returns display-locale date strings over SNMP. Ambiguous slash
+dates such as `01/02/2026` are interpreted US-first as January 2, 2026.
+Year-first dates such as `2026-05-25` and `2026/05/25`, plus unambiguous
+day-first dates such as `13/04/2026`, parse correctly.
 
 **The syslog listener cannot start.**
 Another process may already be using the configured UDP port, or multiple UPS

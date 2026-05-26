@@ -358,6 +358,21 @@ class BuildUPSDataTest(unittest.TestCase):
         )
         self.assertEqual(data.value("self_test_last_date"), date(2026, 5, 14))
 
+    def test_parses_nmc_date_formats_with_us_first_slash_preference(self) -> None:
+        """Supported NMC date formats keep ambiguous slash dates US-first."""
+        cases = {
+            "05/04/2026": date(2026, 5, 4),
+            "13/04/2026": date(2026, 4, 13),
+            "04/13/2026": date(2026, 4, 13),
+            "01/02/2026": date(2026, 1, 2),
+            "2026-05-25": date(2026, 5, 25),
+            "2026/05/25": date(2026, 5, 25),
+        }
+
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(snmp._date(value), expected)
+
     def test_preserves_zero_powernet_values(self) -> None:
         """PowerNet zero readings are not treated as missing fallbacks."""
         data = snmp.build_ups_data(
