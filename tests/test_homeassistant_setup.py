@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
+    ATTR_FRIENDLY_NAME,
     CONF_HOST,
     CONF_PORT,
     CONF_SCAN_INTERVAL,
@@ -270,6 +271,10 @@ async def _assert_environmental_probe_entities_can_appear(
     front_temperature_state = hass.states.get(front_temperature_entity_id)
     assert front_temperature_state is not None
     assert front_temperature_state.state == "23"
+    assert (
+        front_temperature_state.attributes[ATTR_FRIENDLY_NAME]
+        == "Rack UPS Rack front temperature"
+    )
 
     front_humidity_entity_id = er.async_get(hass).async_get_entity_id(
         "sensor",
@@ -296,7 +301,7 @@ async def _assert_environmental_probe_entities_can_appear(
             environmental_probes=(
                 EnvironmentalProbe(
                     index="1.1",
-                    name="Rack front",
+                    name="Rack top",
                     location="Front",
                     connected=True,
                     temperature=23,
@@ -317,6 +322,17 @@ async def _assert_environmental_probe_entities_can_appear(
     front_humidity_state = hass.states.get(front_humidity_entity_id)
     assert front_humidity_state is not None
     assert front_humidity_state.state == "41"
+    assert (
+        front_humidity_state.attributes[ATTR_FRIENDLY_NAME]
+        == "Rack UPS Rack top humidity"
+    )
+
+    front_temperature_state = hass.states.get(front_temperature_entity_id)
+    assert front_temperature_state is not None
+    assert (
+        front_temperature_state.attributes[ATTR_FRIENDLY_NAME]
+        == "Rack UPS Rack top temperature"
+    )
 
 
 async def test_config_entry_does_not_store_runtime_data_on_refresh_failure(

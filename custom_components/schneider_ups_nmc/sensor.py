@@ -417,9 +417,7 @@ class SchneiderUPSNMCEnvironmentalProbeSensorEntity(
         self._sensor_kind = sensor_kind
         description = _environmental_probe_description(probe, sensor_kind)
         super().__init__(coordinator, description)
-        self._attr_translation_placeholders = {
-            "probe_name": _environmental_probe_label(probe),
-        }
+        self._update_probe_name(probe)
 
     @property
     def available(self) -> bool:
@@ -440,6 +438,14 @@ class SchneiderUPSNMCEnvironmentalProbeSensorEntity(
 
         return None
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Refresh dynamic probe metadata before writing updated state."""
+        if probe := self._probe():
+            self._update_probe_name(probe)
+
+        super()._handle_coordinator_update()
+
     def _probe(self) -> EnvironmentalProbe | None:
         """Return the latest environmental probe data for this entity."""
         if self.coordinator.data is None:
@@ -450,6 +456,16 @@ class SchneiderUPSNMCEnvironmentalProbeSensorEntity(
                 return probe
 
         return None
+
+    def _update_probe_name(self, probe: EnvironmentalProbe) -> None:
+        """Update the translated name placeholder from latest probe metadata."""
+        placeholders = {"probe_name": _environmental_probe_label(probe)}
+        if self.translation_placeholders == placeholders:
+            return
+
+        self._attr_translation_placeholders = placeholders
+        vars(self).pop("name", None)
+        self._cached_friendly_name = None
 
 
 def _environmental_sensor_kinds(probe: EnvironmentalProbe) -> tuple[str, ...]:
