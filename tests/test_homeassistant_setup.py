@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -32,7 +33,12 @@ from custom_components.schneider_ups_nmc.const import (
     DOMAIN,
     TROUBLESHOOTING_URL,
 )
-from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, SNMPError, UPSData
+from custom_components.schneider_ups_nmc.snmp import (
+    SNMP_VERSION_2C,
+    EnvironmentalProbe,
+    SNMPError,
+    UPSData,
+)
 from custom_components.schneider_ups_nmc.syslog import (
     RoutedSyslogEvent,
     RoutedSyslogParseFailure,
@@ -227,12 +233,77 @@ async def test_config_entry_sets_up_entities_and_unloads(
     assert missing_state is not None
     assert missing_state.state == STATE_UNAVAILABLE
 
+    await _assert_environmental_probe_entities_can_appear(hass, entry.runtime_data)
+
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.NOT_LOADED
     assert _FakeSNMPClient.instances[0].closed
     assert not hasattr(entry, "runtime_data")
+
+
+async def _assert_environmental_probe_entities_can_appear(
+    hass: HomeAssistant,
+    coordinator: SchneiderUPSNMCCoordinator,
+) -> None:
+    """Assert AP9335 environmental probe sensors are created dynamically."""
+    front_temperature_entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor",
+        DOMAIN,
+        f"{ENTRY_UNIQUE_ID}_environment_probe_1_1_temperature",
+    )
+    assert front_temperature_entity_id is not None
+    front_temperature_state = hass.states.get(front_temperature_entity_id)
+    assert front_temperature_state is not None
+    assert front_temperature_state.state == "23"
+
+    front_humidity_entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor",
+        DOMAIN,
+        f"{ENTRY_UNIQUE_ID}_environment_probe_1_1_humidity",
+    )
+    assert front_humidity_entity_id is None
+
+    rear_humidity_entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor",
+        DOMAIN,
+        f"{ENTRY_UNIQUE_ID}_environment_probe_2_1_humidity",
+    )
+    assert rear_humidity_entity_id is not None
+    rear_humidity_state = hass.states.get(rear_humidity_entity_id)
+    assert rear_humidity_state is not None
+    assert rear_humidity_state.state == "42"
+
+    data = coordinator.data
+    assert data is not None
+    coordinator.async_set_updated_data(
+        replace(
+            data,
+            environmental_probes=(
+                EnvironmentalProbe(
+                    index="1.1",
+                    name="Rack front",
+                    location="Front",
+                    connected=True,
+                    temperature=23,
+                    humidity=41,
+                ),
+                data.environmental_probes[1],
+            ),
+        )
+    )
+    await hass.async_block_till_done()
+
+    front_humidity_entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor",
+        DOMAIN,
+        f"{ENTRY_UNIQUE_ID}_environment_probe_1_1_humidity",
+    )
+    assert front_humidity_entity_id is not None
+    front_humidity_state = hass.states.get(front_humidity_entity_id)
+    assert front_humidity_state is not None
+    assert front_humidity_state.state == "41"
 
 
 async def test_config_entry_does_not_store_runtime_data_on_refresh_failure(
@@ -564,6 +635,24 @@ class _FakeSNMPClient:
             agent_version="NMC 3.2.1",
             mac_address="00:c0:b7:12:34:56",
             unique_id=ENTRY_UNIQUE_ID,
+            environmental_probes=(
+                EnvironmentalProbe(
+                    index="1.1",
+                    name="Rack front",
+                    location="Front",
+                    connected=True,
+                    temperature=23,
+                    humidity=None,
+                ),
+                EnvironmentalProbe(
+                    index="2.1",
+                    name="Rack rear",
+                    location="Rear",
+                    connected=True,
+                    temperature=25,
+                    humidity=42,
+                ),
+            ),
         )
 
     def close(self) -> None:
