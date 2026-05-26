@@ -21,6 +21,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 import custom_components.schneider_ups_nmc as integration
 import custom_components.schneider_ups_nmc.coordinator as coordinator_module
 import custom_components.schneider_ups_nmc.entity as entity_module
+import custom_components.schneider_ups_nmc.event as event_module
 from custom_components.schneider_ups_nmc.const import (
     CONF_COMMUNITY,
     CONF_SNMP_VERSION,
@@ -86,6 +87,27 @@ def test_coordinator_expires_stale_syslog_diagnostic_event(
 
     assert coordinator.last_syslog_event is None
     assert coordinator._last_syslog_event is None
+
+    coordinator.close()
+
+
+def test_syslog_event_types_are_not_shared_mutable_state(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Return HA event types without exposing mutable class-level state."""
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _FakeSNMPClient)
+    coordinator = coordinator_module.SchneiderUPSNMCCoordinator(hass, _mock_entry())
+    entity = event_module.SchneiderUPSNMCSyslogEventEntity(
+        coordinator,
+        event_module.SYSLOG_EVENT_DESCRIPTION,
+    )
+
+    event_types = entity.event_types
+    event_types.append("custom")
+
+    assert event_types != entity.event_types
+    assert tuple(entity.event_types) == event_module.SYSLOG_EVENT_TYPES
 
     coordinator.close()
 
