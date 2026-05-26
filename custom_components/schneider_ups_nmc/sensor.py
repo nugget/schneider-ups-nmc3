@@ -25,6 +25,14 @@ from homeassistant.const import (
 )
 
 from .entity import SchneiderUPSNMCEntity
+from .snmp import (
+    BATTERY_REPLACE_INDICATOR_OPTIONS,
+    BATTERY_STATUS_OPTIONS,
+    INPUT_LINE_FAIL_CAUSE_OPTIONS,
+    OUTPUT_SOURCE_OPTIONS,
+    SELF_TEST_RESULT_OPTIONS,
+    UPS_STATUS_OPTIONS,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -57,11 +65,15 @@ SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMCSensorEntityDescription, ...] = (
     SchneiderUPSNMCSensorEntityDescription(
         key="battery_status",
         translation_key="battery_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=BATTERY_STATUS_OPTIONS,
         value_fn=_value("battery_status"),
     ),
     SchneiderUPSNMCSensorEntityDescription(
         key="ups_status",
         translation_key="ups_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=UPS_STATUS_OPTIONS,
         value_fn=_value("ups_status"),
     ),
     SchneiderUPSNMCSensorEntityDescription(
@@ -117,7 +129,9 @@ SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMCSensorEntityDescription, ...] = (
     SchneiderUPSNMCSensorEntityDescription(
         key="battery_replace_indicator",
         translation_key="battery_replace_indicator",
+        device_class=SensorDeviceClass.ENUM,
         entity_category=EntityCategory.DIAGNOSTIC,
+        options=BATTERY_REPLACE_INDICATOR_OPTIONS,
         value_fn=_value("battery_replace_indicator"),
     ),
     SchneiderUPSNMCSensorEntityDescription(
@@ -193,13 +207,17 @@ SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMCSensorEntityDescription, ...] = (
     SchneiderUPSNMCSensorEntityDescription(
         key="input_line_fail_cause",
         translation_key="input_line_fail_cause",
+        device_class=SensorDeviceClass.ENUM,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
+        options=INPUT_LINE_FAIL_CAUSE_OPTIONS,
         value_fn=_value("input_line_fail_cause"),
     ),
     SchneiderUPSNMCSensorEntityDescription(
         key="output_source",
         translation_key="output_source",
+        device_class=SensorDeviceClass.ENUM,
+        options=OUTPUT_SOURCE_OPTIONS,
         value_fn=_value("output_source"),
     ),
     SchneiderUPSNMCSensorEntityDescription(
@@ -298,7 +316,9 @@ SENSOR_DESCRIPTIONS: tuple[SchneiderUPSNMCSensorEntityDescription, ...] = (
     SchneiderUPSNMCSensorEntityDescription(
         key="self_test_result",
         translation_key="self_test_result",
+        device_class=SensorDeviceClass.ENUM,
         entity_category=EntityCategory.DIAGNOSTIC,
+        options=SELF_TEST_RESULT_OPTIONS,
         value_fn=_value("self_test_result"),
     ),
     SchneiderUPSNMCSensorEntityDescription(

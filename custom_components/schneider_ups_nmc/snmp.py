@@ -157,26 +157,47 @@ MAC_ADDRESS_OCTETS = 6
 VAR_BIND_PARTS = 2
 MAC_PAIR_RE = re.compile(r"[0-9A-Fa-f]{2}")
 
+BATTERY_STATUS_OPTIONS = [
+    "unknown",
+    "normal",
+    "low",
+    "depleted",
+    "fault",
+    "no_battery_present",
+]
 BATTERY_STATUS = {
     1: "unknown",
-    2: "battery_normal",
-    3: "battery_low",
-    4: "battery_depleted",
+    2: "normal",
+    3: "low",
+    4: "depleted",
 }
 
 POWERNET_BATTERY_STATUS = {
     1: "unknown",
-    2: "battery_normal",
-    3: "battery_low",
-    4: "battery_fault",
+    2: "normal",
+    3: "low",
+    4: "fault",
     5: "no_battery_present",
 }
 
+BATTERY_REPLACE_INDICATOR_OPTIONS = [
+    "ok",
+    "needs_replacement",
+]
 BATTERY_REPLACE_INDICATOR = {
     1: "ok",
     2: "needs_replacement",
 }
 
+OUTPUT_SOURCE_OPTIONS = [
+    "other",
+    "none",
+    "normal",
+    "bypass",
+    "battery",
+    "booster",
+    "reducer",
+]
 OUTPUT_SOURCE = {
     1: "other",
     2: "none",
@@ -187,6 +208,36 @@ OUTPUT_SOURCE = {
     7: "reducer",
 }
 
+UPS_STATUS_OPTIONS = [
+    "unknown",
+    "online",
+    "on_battery",
+    "smart_boost",
+    "timed_sleeping",
+    "software_bypass",
+    "off",
+    "rebooting",
+    "switched_bypass",
+    "hardware_failure_bypass",
+    "sleeping_until_power_return",
+    "smart_trim",
+    "eco_mode",
+    "hot_standby",
+    "on_battery_test",
+    "emergency_static_bypass",
+    "static_bypass_standby",
+    "power_saving_mode",
+    "spot_mode",
+    "e_conversion",
+    "charger_spot_mode",
+    "inverter_spot_mode",
+    "active_load",
+    "battery_discharge_spot_mode",
+    "inverter_standby",
+    "charger_only",
+    "distributed_energy_reserve",
+    "self_test",
+]
 UPS_STATUS = {
     1: "unknown",
     2: "online",
@@ -218,6 +269,18 @@ UPS_STATUS = {
     28: "self_test",
 }
 
+INPUT_LINE_FAIL_CAUSE_OPTIONS = [
+    "no_transfer",
+    "high_line_voltage",
+    "brownout",
+    "blackout",
+    "small_momentary_sag",
+    "deep_momentary_sag",
+    "small_momentary_spike",
+    "large_momentary_spike",
+    "self_test",
+    "rate_of_voltage_change",
+]
 INPUT_LINE_FAIL_CAUSE = {
     1: "no_transfer",
     2: "high_line_voltage",
@@ -231,6 +294,12 @@ INPUT_LINE_FAIL_CAUSE = {
     10: "rate_of_voltage_change",
 }
 
+SELF_TEST_RESULT_OPTIONS = [
+    "ok",
+    "failed",
+    "invalid_test",
+    "test_in_progress",
+]
 SELF_TEST_RESULT = {
     1: "ok",
     2: "failed",
