@@ -37,6 +37,7 @@ release-prepare version:
     uv run python - "$manifest_version" "$manifest" "$pyproject" <<'PY'
     import json
     import pathlib
+    import re
     import sys
     import tomllib
 
@@ -54,12 +55,37 @@ release-prepare version:
     pyproject_text = pyproject.read_text(encoding="utf-8")
     parsed = tomllib.loads(pyproject_text)
     current_project_version = parsed["project"]["version"]
+    project_section = re.search(
+        r"(?ms)^\[project\]\n(?P<body>.*?)(?=^\[|\Z)",
+        pyproject_text,
+    )
+    if project_section is None:
+        raise SystemExit("pyproject.toml is missing a [project] section")
+
+    version_pattern = re.compile(
+        r"(?m)^(?P<prefix>version\s*=\s*)(?P<quote>['\"])"
+        r"(?P<value>[^'\"]*)(?P=quote)(?P<suffix>\s*(?:#.*)?)$"
+    )
+    project_body = project_section.group("body")
+    version_lines = list(version_pattern.finditer(project_body))
+    if len(version_lines) != 1:
+        raise SystemExit("pyproject.toml [project] section must contain exactly one version")
+
+    version_line = version_lines[0]
+    if version_line.group("value") != current_project_version:
+        raise SystemExit("pyproject.toml parsed version does not match the version line")
+
+    updated_project_body = (
+        project_body[: version_line.start()]
+        + f"{version_line.group('prefix')}{version_line.group('quote')}"
+        + f"{manifest_version}{version_line.group('quote')}"
+        + version_line.group("suffix")
+        + project_body[version_line.end() :]
+    )
     pyproject.write_text(
-        pyproject_text.replace(
-            f'version = "{current_project_version}"',
-            f'version = "{manifest_version}"',
-            1,
-        ),
+        pyproject_text[: project_section.start("body")]
+        + updated_project_body
+        + pyproject_text[project_section.end("body") :],
         encoding="utf-8",
     )
     PY

@@ -21,13 +21,12 @@ class RepositoryMetadataTest(unittest.TestCase):
         integrations = [
             path
             for path in ROOT.joinpath("custom_components").iterdir()
-            if path.is_dir()
+            if path.is_dir() and path.joinpath("manifest.json").is_file()
         ]
 
         self.assertEqual([path.name for path in integrations], [DOMAIN])
         self.assertTrue(ROOT.joinpath("hacs.json").is_file())
         self.assertTrue(ROOT.joinpath("README.md").is_file())
-        self.assertTrue(integrations[0].joinpath("manifest.json").is_file())
 
     def test_release_versions_match(self) -> None:
         """Keep Home Assistant and Python package metadata in lockstep."""
