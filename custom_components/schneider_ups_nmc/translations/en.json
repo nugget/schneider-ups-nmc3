@@ -42,7 +42,7 @@
     "error": {
       "cannot_connect": "Could not query the UPS over SNMP.",
       "invalid_snmp_configuration": "SNMP settings are incomplete or invalid.",
-      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL.",
+      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments.",
       "missing_auth_key": "Authentication passphrase is required.",
       "missing_privacy_key": "Privacy passphrase is required.",
       "missing_username": "Username is required.",
@@ -68,7 +68,7 @@
       }
     },
     "error": {
-      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL."
+      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments."
     }
   },
   "issues": {

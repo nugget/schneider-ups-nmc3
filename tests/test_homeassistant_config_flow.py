@@ -129,10 +129,19 @@ async def test_config_flow_saves_explicit_web_url(
     )
 
 
+@pytest.mark.parametrize(
+    "web_url",
+    [
+        "ftp://ups.example.test",
+        "https://user:pass@ups.example.test",
+        "https://ups.example.test/#settings",
+    ],
+)
 async def test_config_flow_rejects_invalid_web_url(
     hass: HomeAssistant,
+    web_url: str,
 ) -> None:
-    """Reject non-HTTP(S) NMC web URLs."""
+    """Reject unsafe or non-HTTP(S) NMC web URLs."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_USER},
@@ -141,7 +150,7 @@ async def test_config_flow_rejects_invalid_web_url(
             CONF_PORT: 161,
             CONF_SCAN_INTERVAL: 60,
             CONF_SNMP_VERSION: SNMP_VERSION_2C,
-            CONF_WEB_URL: "ftp://ups.example.test",
+            CONF_WEB_URL: web_url,
         },
     )
 
@@ -275,7 +284,7 @@ async def test_options_flow_saves_polling_and_syslog_options(
             CONF_SYSLOG_ENABLED: False,
             CONF_SYSLOG_BIND_ADDRESS: "127.0.0.1",
             CONF_SYSLOG_PORT: 1515,
-            CONF_WEB_URL: "https://ups.example.test:8443",
+            CONF_WEB_URL: " https://ups.example.test:8443 ",
         },
     )
 
@@ -287,6 +296,41 @@ async def test_options_flow_saves_polling_and_syslog_options(
         CONF_SYSLOG_PORT: 1515,
         CONF_WEB_URL: "https://ups.example.test:8443",
     }
+
+
+async def test_options_flow_rejects_invalid_web_url(
+    hass: HomeAssistant,
+) -> None:
+    """Reject invalid web URLs in the options flow."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="ups-test-device",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SCAN_INTERVAL: 120,
+            CONF_SYSLOG_ENABLED: False,
+            CONF_SYSLOG_BIND_ADDRESS: "127.0.0.1",
+            CONF_SYSLOG_PORT: 1515,
+            CONF_WEB_URL: "https://user:pass@ups.example.test",
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "init"
+    assert result.get("errors") == {CONF_WEB_URL: "invalid_web_url"}
 
 
 async def test_reconfigure_flow_updates_entry_and_schedules_reload(
@@ -370,6 +414,68 @@ async def test_reconfigure_flow_updates_entry_and_schedules_reload(
         retries=1,
     )
     assert _FakeConfigFlowSNMPClient.instances[0].closed
+    reload_mock.assert_called_once_with(entry.entry_id)
+
+
+async def test_reconfigure_flow_replaces_options_web_url_override(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Let reconfigure replace a web URL that was previously set in options."""
+    _FakeConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
+    reload_mock = Mock()
+    monkeypatch.setattr(hass.config_entries, "async_schedule_reload", reload_mock)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="as1234567890",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+            CONF_WEB_URL: "https://data.example.test",
+        },
+        options={
+            CONF_WEB_URL: "https://options.example.test",
+            CONF_SYSLOG_ENABLED: False,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_WEB_URL: "https://reconfigured.example.test",
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "private"},
+    )
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "reconfigure_successful"
+    assert entry.data[CONF_WEB_URL] == "https://reconfigured.example.test"
+    assert CONF_WEB_URL not in entry.options
+    assert entry.options[CONF_SYSLOG_ENABLED] is False
     reload_mock.assert_called_once_with(entry.entry_id)
 
 

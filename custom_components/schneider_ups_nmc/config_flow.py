@@ -167,7 +167,7 @@ class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_base_schema(entry.data),
+            data_schema=_base_schema(_entry_effective_data(entry)),
         )
 
     async def async_step_snmpv2c(
@@ -250,6 +250,13 @@ class SchneiderUPSNMCConfigFlow(  # pyright: ignore[reportGeneralTypeIssues]
         entry_data = _entry_data(data)
         if self.source == config_entries.SOURCE_RECONFIGURE:
             entry = self._get_reconfigure_entry()
+            if CONF_WEB_URL in entry_data:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    title=title,
+                    data=_reconfigured_entry_data(entry.data, entry_data),
+                    options=_options_without_web_url(entry.options),
+                )
             return self.async_update_reload_and_abort(
                 entry,
                 title=title,
@@ -448,6 +455,8 @@ def _normalize_web_url(value: Any) -> str | None:
     parsed = urlparse(web_url)
     if parsed.scheme not in WEB_URL_SCHEMES or not parsed.netloc:
         raise ValueError
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ValueError
 
     return web_url
 
@@ -484,6 +493,11 @@ def _entry_data(data: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in data.items() if key != "_title"}
 
 
+def _entry_effective_data(config_entry: config_entries.ConfigEntry) -> dict[str, Any]:
+    """Return entry data with options-level overrides applied."""
+    return dict(config_entry.data) | dict(config_entry.options)
+
+
 def _reconfigured_entry_data(
     existing_data: Mapping[str, Any],
     updated_data: Mapping[str, Any],
@@ -495,6 +509,13 @@ def _reconfigured_entry_data(
         if key not in RECONFIGURE_REPLACED_DATA_KEYS and key != "_title"
     }
     return preserved_data | dict(updated_data)
+
+
+def _options_without_web_url(existing_options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return options with any web URL override removed."""
+    return {
+        key: value for key, value in existing_options.items() if key != CONF_WEB_URL
+    }
 
 
 def _config_from_data(data: dict[str, Any]) -> SNMPConnectionConfig:
