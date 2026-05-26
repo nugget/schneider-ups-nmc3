@@ -55,7 +55,7 @@ async def test_config_entry_diagnostics_redacts_secrets_and_reports_state(
         },
     )
     entry.add_to_hass(hass)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = _FakeCoordinator(
+    entry.runtime_data = _FakeCoordinator(
         data=_ups_data(),
         last_update_success=True,
         last_syslog_event=_syslog_event(),

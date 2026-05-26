@@ -45,10 +45,16 @@ async def async_setup_entry(
         coordinator.close()
         raise
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    await _async_register_syslog(hass, entry, coordinator)
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    entry.runtime_data = coordinator
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        await _async_register_syslog(hass, entry, coordinator)
+    except Exception:
+        coordinator.close()
+        object.__delattr__(entry, "runtime_data")
+        raise
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     return True
 
@@ -59,18 +65,16 @@ async def async_unload_entry(
     """Unload an APC UPS NMC config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        coordinator: SchneiderUPSNMCCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        coordinator.close()
+        entry.runtime_data.close()
 
     return unload_ok
 
 
-async def async_reload_entry(
+async def _async_update_listener(
     hass: HomeAssistant, entry: SchneiderUPSNMCConfigEntry
 ) -> None:
-    """Reload an APC UPS NMC config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+    """Reload an APC UPS NMC config entry after options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def _async_register_syslog(

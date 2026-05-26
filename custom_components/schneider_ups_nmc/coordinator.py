@@ -74,8 +74,6 @@ class SchneiderUPSNMCCoordinator(DataUpdateCoordinator[UPSData]):
             update_interval=timedelta(seconds=int(scan_interval)),
         )
 
-        entry.runtime_data = self
-
     async def _async_update_data(self) -> UPSData:
         """Fetch data from the UPS."""
         try:
