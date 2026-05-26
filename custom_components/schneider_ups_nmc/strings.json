@@ -42,7 +42,7 @@
     "error": {
       "cannot_connect": "Could not query the UPS over SNMP.",
       "invalid_snmp_configuration": "SNMP settings are incomplete or invalid.",
-      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments.",
+      "invalid_web_url": "Enter a hostname or an HTTP/HTTPS URL.",
       "missing_auth_key": "Authentication passphrase is required.",
       "missing_community": "Community is required.",
       "missing_privacy_key": "Privacy passphrase is required.",
@@ -70,7 +70,7 @@
     },
     "error": {
       "invalid_syslog_bind_address": "Syslog bind address must be an IPv4 or IPv6 address.",
-      "invalid_web_url": "Web UI URL must be an absolute HTTP or HTTPS URL without embedded credentials or fragments."
+      "invalid_web_url": "Enter a hostname or an HTTP/HTTPS URL."
     }
   },
   "issues": {

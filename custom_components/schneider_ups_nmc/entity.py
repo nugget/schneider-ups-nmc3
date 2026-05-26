@@ -62,7 +62,7 @@ class SchneiderUPSNMCEntity(CoordinatorEntity[SchneiderUPSNMCCoordinator]):
 def _configuration_url(host: str, web_url: str | None = None) -> str:
     """Return the NMC web configuration URL for a host."""
     if web_url:
-        return web_url
+        return _explicit_configuration_url(web_url)
 
     try:
         address = ip_address(host)
@@ -76,3 +76,12 @@ def _configuration_url(host: str, web_url: str | None = None) -> str:
             host_text = f"{address_text}%25{quote(address.scope_id, safe='')}"
         return f"http://[{host_text}]"
     return f"http://{address}"
+
+
+def _explicit_configuration_url(web_url: str) -> str:
+    """Return an absolute explicit NMC web configuration URL."""
+    normalized_url = web_url.strip()
+    if "://" not in normalized_url:
+        normalized_url = f"https://{normalized_url}"
+
+    return normalized_url

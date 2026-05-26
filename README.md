@@ -79,9 +79,10 @@ Setup fields:
 - **Port**: SNMP UDP port. The default is `161`.
 - **SNMP version**: `SNMPv2c` or `SNMPv3`.
 - **Scan interval**: polling interval in seconds. The default is `60`.
-- **Web UI URL**: optional HTTP(S) URL used for the Home Assistant device
-  configuration link. Paths, query strings, and path parameters are allowed for
-  NMC deep links; URL fragments and embedded credentials are rejected.
+- **Web UI URL**: optional hostname or HTTP(S) URL used for the Home Assistant
+  device configuration link. Bare hostnames are treated as HTTPS. Paths, query
+  strings, and path parameters are allowed for NMC deep links; URL fragments
+  and embedded credentials are rejected.
 
 SNMPv2c credential fields:
 

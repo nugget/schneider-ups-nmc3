@@ -65,6 +65,10 @@ def test_configuration_url_formats_ip_hosts() -> None:
         )
         == "https://ups.example.test:8443/status"
     )
+    assert (
+        entity_module._configuration_url("192.0.2.10", "ups.example.test")
+        == "https://ups.example.test"
+    )
 
 
 def test_coordinator_expires_stale_syslog_diagnostic_event(
