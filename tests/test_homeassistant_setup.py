@@ -246,6 +246,44 @@ async def test_config_entry_does_not_store_runtime_data_on_refresh_failure(
     assert ENTRY_ID not in hass.data.get(DOMAIN, {})
 
 
+async def test_config_entry_unloads_after_partial_setup_failure(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unload cleanly when setup fails after runtime data is assigned."""
+    _FakeSNMPClient.instances.clear()
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _FakeSNMPClient)
+
+    async def async_forward_entry_setups(*_args: object) -> None:
+        """Simulate a platform setup failure."""
+        raise RuntimeError("platform setup failed")
+
+    async def async_unload_platforms(*_args: object) -> bool:
+        """Simulate Home Assistant unloading any partially created platforms."""
+        return True
+
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        async_forward_entry_setups,
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_unload_platforms",
+        async_unload_platforms,
+    )
+
+    entry = _mock_entry(options={CONF_SYSLOG_ENABLED: False})
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert _FakeSNMPClient.instances[0].closed
+    assert await integration.async_unload_entry(hass, entry)
+
+
 async def test_config_entry_marks_missing_binary_value_unavailable(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
