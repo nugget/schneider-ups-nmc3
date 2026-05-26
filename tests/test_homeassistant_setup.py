@@ -26,6 +26,7 @@ from custom_components.schneider_ups_nmc.const import (
     CONF_SYSLOG_BIND_ADDRESS,
     CONF_SYSLOG_ENABLED,
     CONF_SYSLOG_PORT,
+    CONF_WEB_URL,
     DOMAIN,
 )
 from custom_components.schneider_ups_nmc.snmp import SNMP_VERSION_2C, UPSData
@@ -49,6 +50,13 @@ def test_configuration_url_formats_ip_hosts() -> None:
     assert entity_module._configuration_url("192.0.2.10") == "http://192.0.2.10"
     assert entity_module._configuration_url("2001:db8::1") == "http://[2001:db8::1]"
     assert entity_module._configuration_url("fe80::1%eth0") == "http://[fe80::1%25eth0]"
+    assert (
+        entity_module._configuration_url(
+            "192.0.2.10",
+            "https://ups.example.test:8443/status",
+        )
+        == "https://ups.example.test:8443/status"
+    )
 
 
 async def test_config_entry_sets_up_entities_and_unloads(
@@ -134,6 +142,35 @@ async def test_config_entry_marks_missing_binary_value_unavailable(
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert _SparseSNMPClient.instances[0].closed
+
+
+async def test_config_entry_uses_explicit_web_url(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use an explicit NMC web URL for the device configuration link."""
+    _FakeSNMPClient.instances.clear()
+    monkeypatch.setattr(coordinator_module, "SNMPClient", _FakeSNMPClient)
+
+    entry = _mock_entry(
+        options={
+            CONF_SYSLOG_ENABLED: False,
+            CONF_WEB_URL: "https://ups.example.test:8443/status",
+        }
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    device = dr.async_get(hass).async_get_device(
+        identifiers={(DOMAIN, ENTRY_UNIQUE_ID)}
+    )
+    assert device is not None
+    assert device.configuration_url == "https://ups.example.test:8443/status"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
 
 
 async def test_syslog_register_failure_creates_and_clears_repair_issue(

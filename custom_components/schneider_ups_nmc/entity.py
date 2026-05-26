@@ -40,7 +40,10 @@ class SchneiderUPSNMCEntity(CoordinatorEntity[SchneiderUPSNMCCoordinator]):
         """Return device registry information."""
         data = self.coordinator.data
         device_info = DeviceInfo(
-            configuration_url=_configuration_url(self.coordinator.host),
+            configuration_url=_configuration_url(
+                self.coordinator.host,
+                self.coordinator.web_url,
+            ),
             identifiers={(DOMAIN, self.coordinator.device_id)},
             manufacturer=data.manufacturer if data else "Schneider Electric",
             model=data.model if data else None,
@@ -56,8 +59,11 @@ class SchneiderUPSNMCEntity(CoordinatorEntity[SchneiderUPSNMCCoordinator]):
         return device_info
 
 
-def _configuration_url(host: str) -> str:
+def _configuration_url(host: str, web_url: str | None = None) -> str:
     """Return the NMC web configuration URL for a host."""
+    if web_url:
+        return web_url
+
     try:
         address = ip_address(host)
     except ValueError:

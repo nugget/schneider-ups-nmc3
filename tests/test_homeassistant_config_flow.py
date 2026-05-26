@@ -26,6 +26,7 @@ from custom_components.schneider_ups_nmc.const import (
     CONF_SYSLOG_ENABLED,
     CONF_SYSLOG_PORT,
     CONF_USERNAME,
+    CONF_WEB_URL,
     DOMAIN,
 )
 from custom_components.schneider_ups_nmc.snmp import (
@@ -92,6 +93,61 @@ async def test_snmpv2c_config_flow_creates_entry(
         retries=1,
     )
     assert _FakeConfigFlowSNMPClient.instances[0].closed
+
+
+async def test_config_flow_saves_explicit_web_url(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Store an explicit NMC web URL for the device configuration link."""
+    _FakeConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_WEB_URL: " https://ups.example.test:8443/status ",
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "snmpv2c"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "public"},
+    )
+
+    assert result.get("type") is FlowResultType.CREATE_ENTRY
+    assert result.get("data", {}).get(CONF_WEB_URL) == (
+        "https://ups.example.test:8443/status"
+    )
+
+
+async def test_config_flow_rejects_invalid_web_url(
+    hass: HomeAssistant,
+) -> None:
+    """Reject non-HTTP(S) NMC web URLs."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_WEB_URL: "ftp://ups.example.test",
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "user"
+    assert result.get("errors") == {CONF_WEB_URL: "invalid_web_url"}
 
 
 async def test_snmpv2c_config_flow_reports_connection_failure(
@@ -219,6 +275,7 @@ async def test_options_flow_saves_polling_and_syslog_options(
             CONF_SYSLOG_ENABLED: False,
             CONF_SYSLOG_BIND_ADDRESS: "127.0.0.1",
             CONF_SYSLOG_PORT: 1515,
+            CONF_WEB_URL: "https://ups.example.test:8443",
         },
     )
 
@@ -228,6 +285,7 @@ async def test_options_flow_saves_polling_and_syslog_options(
         CONF_SYSLOG_ENABLED: False,
         CONF_SYSLOG_BIND_ADDRESS: "127.0.0.1",
         CONF_SYSLOG_PORT: 1515,
+        CONF_WEB_URL: "https://ups.example.test:8443",
     }
 
 

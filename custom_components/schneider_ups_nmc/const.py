@@ -21,6 +21,7 @@ CONF_SYSLOG_BIND_ADDRESS = "syslog_bind_address"
 CONF_SYSLOG_ENABLED = "syslog_enabled"
 CONF_SYSLOG_PORT = "syslog_port"
 CONF_USERNAME = "username"
+CONF_WEB_URL = "web_url"
 
 DEFAULT_PORT = 161
 DEFAULT_RETRIES = 1
