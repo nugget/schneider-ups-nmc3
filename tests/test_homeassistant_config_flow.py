@@ -129,6 +129,54 @@ async def test_config_flow_saves_explicit_web_url(
     )
 
 
+async def test_config_flow_duplicate_manual_add_does_not_rewrite_existing_entry(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not silently repoint an existing entry during manual duplicate setup."""
+    _FakeConfigFlowSNMPClient.instances.clear()
+    monkeypatch.setattr(config_flow_module, "SNMPClient", _FakeConfigFlowSNMPClient)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="as1234567890",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_HOST: "192.0.2.99",
+            CONF_PORT: 1161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_COMMUNITY: "private"},
+    )
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "already_configured"
+    assert entry.data == {
+        CONF_HOST: "192.0.2.10",
+        CONF_PORT: 161,
+        CONF_SCAN_INTERVAL: 60,
+        CONF_SNMP_VERSION: SNMP_VERSION_2C,
+        CONF_COMMUNITY: "public",
+    }
+    assert _FakeConfigFlowSNMPClient.instances[0].closed
+
+
 @pytest.mark.parametrize(
     "web_url",
     [
@@ -282,7 +330,7 @@ async def test_options_flow_saves_polling_and_syslog_options(
         {
             CONF_SCAN_INTERVAL: 120,
             CONF_SYSLOG_ENABLED: False,
-            CONF_SYSLOG_BIND_ADDRESS: "127.0.0.1",
+            CONF_SYSLOG_BIND_ADDRESS: " 127.0.0.1 ",
             CONF_SYSLOG_PORT: 1515,
             CONF_WEB_URL: " https://ups.example.test:8443 ",
         },
@@ -331,6 +379,42 @@ async def test_options_flow_rejects_invalid_web_url(
     assert result.get("type") is FlowResultType.FORM
     assert result.get("step_id") == "init"
     assert result.get("errors") == {CONF_WEB_URL: "invalid_web_url"}
+
+
+async def test_options_flow_rejects_invalid_syslog_bind_address(
+    hass: HomeAssistant,
+) -> None:
+    """Reject syslog bind addresses that are not IP literals."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rack UPS",
+        unique_id="ups-test-device",
+        data={
+            CONF_HOST: "192.0.2.10",
+            CONF_PORT: 161,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_SNMP_VERSION: SNMP_VERSION_2C,
+            CONF_COMMUNITY: "public",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SCAN_INTERVAL: 120,
+            CONF_SYSLOG_ENABLED: True,
+            CONF_SYSLOG_BIND_ADDRESS: "localhost",
+            CONF_SYSLOG_PORT: 1515,
+        },
+    )
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "init"
+    assert result.get("errors") == {
+        CONF_SYSLOG_BIND_ADDRESS: "invalid_syslog_bind_address",
+    }
 
 
 async def test_reconfigure_flow_updates_entry_and_schedules_reload(
